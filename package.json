@@ -1,0 +1,30 @@
+{
+  "name": "khuimeng",
+  "version": "0.1.0",
+  "description": "通用多角色 AI 辯論與共識生成框架 - Multi-Agent Debate Framework with true multi-LLM support",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "khuimeng": "./bin/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx examples/mvp-debate.ts",
+    "start": "tsx bin/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "mvp": "tsx examples/mvp-debate.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.5",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

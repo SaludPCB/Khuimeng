@@ -1,0 +1,30 @@
+# Khuimeng 座席映射與辯論規則設定
+# 將每個角色 (agent) 指派到不同的 LLM 供應商與模型
+
+seats:
+  moderator:
+    provider: anthropic
+    model: claude-3-5-sonnet-latest
+    reasoning_mode: analytical
+  socrates:
+    provider: google
+    model: gemini-2.0-flash
+    reasoning_mode: analytical
+  feynman:
+    provider: openai
+    model: gpt-4o
+    reasoning_mode: mechanistic
+  critic:
+    provider: deepseek
+    model: deepseek-chat
+    reasoning_mode: adversarial
+
+rules:
+  max_rounds: 3          # 最大辯論輪次
+  provider_spread_first: true                   # 優先分散供應商，防止思維趨同
+  force_counterfactual_if_consensus_gt: 0.70   # 共識超過 70% 強制引入質疑者
+  require_dissenting_members: 1                # 至少 1 位持異議角色
+
+fallback:
+  provider: anthropic
+  model: claude-3-5-sonnet

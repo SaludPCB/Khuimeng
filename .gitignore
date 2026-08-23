@@ -1,0 +1,29 @@
+# 1. 依賴套件（體積龐大）
+node_modules/
+
+# 2. 內部調研與分析報告目錄（不推上 Git）
+reports/
+
+# 3. 編譯產物
+dist/
+build/
+*.tsbuildinfo
+
+# 4. 敏感 API 金鑰（絕對不能外流）
+.env
+.env.*
+!.env.example
+
+# 5. 本地編輯器與 AI 快取
+.qwen/
+.gemini/
+.vscode/
+.idea/
+
+# 6. 系統隱藏垃圾檔
+.DS_Store
+Thumbs.db
+
+# 7. 日誌檔案
+*.log
+npm-debug.log*
