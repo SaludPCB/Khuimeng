@@ -7,20 +7,35 @@ export interface SeatConfig {
   provider: ProviderName;
   model: string;
   reasoning_mode?: string;
+  system_prompt_file?: string;
+}
+
+export interface PipelineConfig {
+  mode: string; // "report_chain"
+  max_iterations: number; // 退回重做上限，超限熔斷轉人工
+  consensus_threshold?: number | null;
 }
 
 export interface SeatsConfig {
   seats: Record<string, SeatConfig>;
-  rules: {
-    max_rounds: number;
-    provider_spread_first?: boolean;
-    force_counterfactual_if_consensus_gt?: number;
-    require_dissenting_members?: number;
-  };
+  pipeline: PipelineConfig;
   fallback: SeatConfig;
 }
 
 export function loadSeats(configPath = "configs/seats.yaml"): SeatsConfig {
   const file = readFileSync(resolve(configPath), "utf-8");
-  return parse(file) as SeatsConfig;
+  const config = parse(file) as SeatsConfig;
+  if (!config.seats || typeof config.seats !== "object") {
+    throw new Error(`seats.yaml 缺少 seats 區塊: ${configPath}`);
+  }
+  if (
+    !config.pipeline ||
+    config.pipeline.mode !== "report_chain" ||
+    typeof config.pipeline.max_iterations !== "number"
+  ) {
+    throw new Error(
+      `seats.yaml 缺少 pipeline 區塊（mode: report_chain + max_iterations）: ${configPath}`,
+    );
+  }
+  return config;
 }

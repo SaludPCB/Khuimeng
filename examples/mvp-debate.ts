@@ -1,44 +1,28 @@
 /**
- * Khuimeng MVP：雙 Agent 雙模型辯論
- * 使用：bun run examples/mvp-debate.ts
- * 需要設定環境變數（至少兩個供應商）：
- *   OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY / DEEPSEEK_API_KEY
+ * Khuimeng MVP：三角色報告管道 mock 演練（免 API key）
+ * 使用：npm run mvp -- "議題"
+ * mock 模式以內建模擬報告跑通 Coder → Viewer → Tester 全鏈（含一次退回路由示範），
+ * 真實執行請改用：npm start -- "議題"（三席位各需對應 API key）
  */
-import { createRegistry } from "../src/llm/factory";
+import { resolve } from "node:path";
 import { loadSeats } from "../src/agent/seat-loader";
-import { loadRole, parseRoleMarkdown } from "../src/agent/role-loader";
-import { BaseAgent } from "../src/agent/base-agent";
-import { DebateEngine } from "../src/debate/engine";
-import { TerminalRoom } from "../src/ui/terminal-room";
+import { ReportPipeline } from "../src/pipeline/report-pipeline";
 
-const topic = process.argv[2] ?? "開源 AI Agent 專案應該用哪種語言？";
+const topic = process.argv.slice(2).join(" ") || "開源 AI Agent 專案應該用哪種語言？";
+const root = resolve(import.meta.dirname, "..");
+const seats = loadSeats(resolve(root, "configs/seats.yaml"));
 
-const seats = loadSeats();
-const registry = createRegistry();
-
-function buildAgent(name: string): BaseAgent {
-  const seat = seats.seats[name];
-  if (!seat) throw new Error(`座席不存在: ${name}`);
-  const provider = registry.get(seat.provider);
-  if (!provider) {
-    throw new Error(`供應商 ${seat.provider} 未設定 API key`);
-  }
-  const role = parseRoleMarkdown(loadRole(name), name);
-  return new BaseAgent({ name, role, seat, provider });
-}
-
-const moderator = buildAgent("moderator");
-const members = [buildAgent("socrates"), buildAgent("critic")];
-
-const room = new TerminalRoom();
-room.renderIntro(topic);
-
-const engine = new DebateEngine(moderator, members, {
-  maxRounds: seats.rules.max_rounds,
-  forceConsensusThreshold: seats.rules.force_counterfactual_if_consensus_gt ?? 0.7,
-  requireDissenting: seats.rules.require_dissenting_members ?? 1,
-  onSpeech: (agent, content, round) => room.renderSpeech({ agent, content, round }),
+const pipeline = new ReportPipeline({
+  seats,
+  mock: true,
+  agentsDir: resolve(root, "agents"),
+  reportsDir: resolve(root, "reports/pipeline"),
+  log: (line) => console.log(line),
 });
 
-const outcome = await engine.run(topic);
-room.renderSummary(outcome.transcript.summary ?? "（無摘要）");
+const result = await pipeline.run(topic);
+console.log(
+  result.status === "delivered"
+    ? "MVP mock 演練完成：報告已存 reports/pipeline/。"
+    : "MVP mock 演練熔斷：轉人工裁決。",
+);

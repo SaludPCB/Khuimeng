@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "tsx examples/mvp-debate.ts",
     "start": "tsx bin/cli.ts",
+    "pipeline": "tsx bin/cli.ts",
     "typecheck": "tsc --noEmit",
     "mvp": "tsx examples/mvp-debate.ts"
   },
