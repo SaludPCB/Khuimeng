@@ -1,30 +1,29 @@
-# Khuimeng 座席映射與辯論規則設定
+# Khuimeng 座席映射與報告管道設定
 # 將每個角色 (agent) 指派到不同的 LLM 供應商與模型
+# 跨供應商異質性為品質防線：三角色各綁不同供應商，避免單一模型系統性盲點
 
 seats:
-  moderator:
-    provider: anthropic
-    model: claude-3-5-sonnet-latest
-    reasoning_mode: analytical
-  socrates:
-    provider: google
-    model: gemini-2.0-flash
-    reasoning_mode: analytical
-  feynman:
+  coder:
     provider: openai
     model: gpt-4o
     reasoning_mode: mechanistic
-  critic:
+    system_prompt_file: agents/coder.md
+  viewer:
+    provider: anthropic
+    model: claude-3-5-sonnet-latest
+    reasoning_mode: analytical
+    system_prompt_file: agents/viewer.md
+  tester:
     provider: deepseek
     model: deepseek-chat
     reasoning_mode: adversarial
+    system_prompt_file: agents/tester.md
 
-rules:
-  max_rounds: 3          # 最大辯論輪次
-  provider_spread_first: true                   # 優先分散供應商，防止思維趨同
-  force_counterfactual_if_consensus_gt: 0.70   # 共識超過 70% 強制引入質疑者
-  require_dissenting_members: 1                # 至少 1 位持異議角色
+pipeline:
+  mode: report_chain          # 報告串列模式（取代舊 debate 輪次制）
+  max_iterations: 3           # 退回重做上限，超限熔斷轉人工
+  consensus_threshold: null   # 管道模式不需要共識判定
 
 fallback:
   provider: anthropic
-  model: claude-3-5-sonnet
+  model: claude-3-5-sonnet-latest
