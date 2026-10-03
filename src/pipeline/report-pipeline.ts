@@ -116,6 +116,8 @@ export interface ReportPipelineOptions {
   registry?: ProviderRegistry;
   agentsDir?: string;
   reportsDir?: string;
+  /** 覆寫 seats.yaml 的 pipeline.max_iterations（熔斷上限） */
+  maxIterations?: number;
   /** 報告檔名署名；預設 mock 為 "mock"，real 為 "pipeline" */
   signature?: string;
   log?: (line: string) => void;
@@ -127,6 +129,7 @@ export class ReportPipeline {
   private readonly registry?: ProviderRegistry;
   private readonly agentsDir: string;
   private readonly reportsDir: string;
+  private readonly maxIterations: number;
   private readonly signature: string;
   private readonly log: (line: string) => void;
   private readonly agents = new Map<PipelineRole, BaseAgent>();
@@ -145,6 +148,11 @@ export class ReportPipeline {
     this.registry = opts.registry;
     this.agentsDir = opts.agentsDir ?? "agents";
     this.reportsDir = opts.reportsDir ?? "reports/pipeline";
+    this.maxIterations =
+      opts.maxIterations ?? this.seats.pipeline.max_iterations;
+    if (!Number.isInteger(this.maxIterations) || this.maxIterations < 1) {
+      throw new Error(`max_iterations 須為正整數，實際: ${this.maxIterations}`);
+    }
     this.signature = opts.signature ?? (this.mock ? "mock" : "pipeline");
     this.log = opts.log ?? (() => {});
     if (!this.mock && !this.registry) {
@@ -156,7 +164,7 @@ export class ReportPipeline {
     this.validateRoleFiles();
     if (!this.mock) this.validateProviders();
 
-    const max = this.seats.pipeline.max_iterations;
+    const max = this.maxIterations;
     let iteration = 1;
     let role: PipelineRole = "coder";
     let upstream = `任務：${task}`;

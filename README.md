@@ -51,6 +51,17 @@ npm start -- "你想要完成的任務"
 npm test
 ```
 
+**CLI 旗標**：
+
+```bash
+npm start -- --mock --json "任務"        # 機器可讀 JSON 輸出
+npm start -- -f 任務書.md                # 任務書從檔案讀入
+npm start -- --max-iterations 5 "任務"   # 覆寫熔斷上限
+npm start -- --reports-dir /tmp/r "任務" # 自訂報告輸出目錄
+```
+
+Exit codes：`0` delivered（雙門檻通過）｜`1` circuit_break（熔斷轉人工）｜`2` 使用錯誤或校驗失敗。
+
 報告產出至 `reports/pipeline/`，檔名即信封：`{角色}_{輪次}_{任務}_{署名}.md`。
 
 ## 目錄結構
