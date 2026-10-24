@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Box, render, Static, Text, useApp, useInput } from "ink";
-import { loadSeats } from "../agent/seat-loader";
+import { Box, render, Static, Text, useApp, useInput } from "ink";import { loadSeats } from "../agent/seat-loader";
 import { createRegistry, type ProviderRegistry } from "../llm/factory";
 import {
   executeCommand,
@@ -35,7 +34,7 @@ function Spinner({ label }: { label: string }) {
   );
 }
 
-function App(props: {
+export function App(props: {
   mock: boolean;
   seats: ReturnType<typeof loadSeats>;
   registry?: ProviderRegistry;
@@ -43,7 +42,7 @@ function App(props: {
   reportsDir: string;
 }) {
   const { exit } = useApp();
-  const [, setTick] = useState(0);
+  const [messages, setMessages] = useState<TuiMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const historyRef = useRef<string[]>([]);
@@ -59,7 +58,8 @@ function App(props: {
       reportsDir: props.reportsDir,
       messages: [] as TuiMessage[],
       chat: [] as ChatTurn[],
-      emit: () => setTick((t) => t + 1),
+      // Static 依「新陣列參考」渲染新訊息——emit 必須給複本，原地修改它看不到
+      emit: () => setMessages([...ctxRef.current!.messages]),
       busy: (role) => setBusy(role),
       exit: () => exit(),
     };
@@ -71,6 +71,10 @@ function App(props: {
     });
   }
   const ctx = ctxRef.current;
+
+  useEffect(() => {
+    setMessages([...ctx.messages]);
+  }, []);
 
   useInput((ch, key) => {
     if (key.return) {
@@ -116,7 +120,7 @@ function App(props: {
 
   return (
     <Box flexDirection="column">
-      <Static items={ctx.messages}>
+      <Static items={messages}>
         {(m: TuiMessage, i: number) => {
           const s = KIND_STYLE[m.kind];
           return (
