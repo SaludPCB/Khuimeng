@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createRegistry } from "../src/llm/factory";
 import { loadSeats } from "../src/agent/seat-loader";
-import { ReportPipeline } from "../src/pipeline/report-pipeline";
+import { ReportPipeline, ROLES, type PipelineRole } from "../src/pipeline/report-pipeline";
+import { runWatcher } from "../src/pipeline/watcher";
 
 // Khuimeng 報告管道 CLI
 //   npm start -- "任務"                    real 模式（三席位各需對應 API key）
 //   npm start -- --mock "任務"             mock 模式（免 API key，模擬報告跑通全鏈）
 //   npm start -- -f 任務書.md --mock       任務書從檔案讀入
+//   npm start -- watch coder|viewer|tester 三視窗觀測（各開一個終端機）
 //
 // Exit codes: 0=delivered（雙門檻通過）｜1=circuit_break（熔斷轉人工）｜2=使用錯誤或校驗失敗
 
@@ -17,8 +19,12 @@ const VERSION = "0.1.0";
 const HELP = `Khuimeng 報告管道 CLI v${VERSION}
 
 用法：
-  khuimeng [旗標] "任務"            real 模式執行任務
+  khuimeng [旗標] "任務"            執行任務（real 模式）
   khuimeng --mock "任務"            mock 模式（免 API key）
+  khuimeng watch <角色> [旗標]      觀測面板：即時盯某角色的報告產出
+
+watch 角色：coder | viewer | tester（開三個終端機視窗各跑一個，即是三視窗觀測）
+watch 旗標：--reports-dir <路徑>（同跑任務的目錄）、--once（渲染一次即退出）
 
 旗標：
   --mock, --dry-run          mock 模式，以內建模擬報告跑通全鏈
@@ -30,7 +36,61 @@ const HELP = `Khuimeng 報告管道 CLI v${VERSION}
   --version                  顯示版本
   -h, --help                 顯示本說明
 
+三視窗示例（四個終端機）：
+  npm start -- watch coder
+  npm start -- watch viewer
+  npm start -- watch tester
+  npm start -- --mock "你的任務"     # 或 real 模式（設 NVIDIA_API_KEY）
+
 Exit codes: 0=delivered｜1=circuit_break（熔斷轉人工）｜2=使用錯誤或校驗失敗`;
+
+// ── watch 子命令 ──────────────────────────────────────────────
+
+function runWatchCommand(argv: string[]): number {
+  let role = "";
+  let reportsDir = "reports/pipeline";
+  let once = false;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a === "--reports-dir") {
+      const next = argv[++i];
+      if (!next) {
+        console.error("錯誤: --reports-dir 需要目錄路徑");
+        return 2;
+      }
+      reportsDir = next;
+    } else if (a === "--once") {
+      once = true;
+    } else if (!a.startsWith("-")) {
+      if (role) {
+        console.error(`錯誤: 多餘參數 ${a}（watch 只吃一個角色）`);
+        return 2;
+      }
+      role = a;
+    } else {
+      console.error(`錯誤: watch 不支援旗標 ${a}`);
+      return 2;
+    }
+  }
+  if (!ROLES.includes(role as PipelineRole)) {
+    console.error(`錯誤: watch 角色須為 coder|viewer|tester，實際: ${role || "（未提供）"}`);
+    return 2;
+  }
+  runWatcher(role as PipelineRole, resolve(reportsDir), {
+    once,
+    write: (panel) => {
+      process.stdout.write(`\x1B[2J\x1B[H${panel}\n`);
+    },
+  });
+  return 0;
+}
+
+const argv = process.argv.slice(2);
+if (argv[0] === "watch") {
+  process.exit(runWatchCommand(argv.slice(1)));
+}
+
+// ── 主命令：跑管道 ────────────────────────────────────────────
 
 interface CliArgs {
   mock: boolean;
@@ -110,7 +170,7 @@ function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; m
   return { ok: true, args };
 }
 
-const parsed = parseArgs(process.argv.slice(2));
+const parsed = parseArgs(argv);
 if (!parsed.ok) {
   console.error(`錯誤: ${parsed.message}`);
   process.exit(2);

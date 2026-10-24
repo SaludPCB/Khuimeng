@@ -41,17 +41,42 @@ npm install
 # 體驗：mock 模式跑通三角色報告管道（免 API key）
 npm start -- --mock "你想要完成的任務"
 
-# 真實執行：設定各席位供應商的 API key 後
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
-export DEEPSEEK_API_KEY=...
+# 真實執行（nvidia 一把 key 三個模型）：
+export NVIDIA_API_KEY=nvapi-...
 npm start -- "你想要完成的任務"
 
 # 測試
 npm test
 ```
 
-**CLI 旗標**：
+## 三視窗觀測（watch）
+
+開三個終端機視窗各盯一個大腦，第四個視窗跑任務——三個工位依序開工的畫面：
+
+```bash
+npm start -- watch coder    # 視窗 1：Coder 席
+npm start -- watch viewer   # 視窗 2：Viewer 席
+npm start -- watch tester   # 視窗 3：Tester 席
+npm start -- --mock "任務"  # 視窗 4：跑任務（或 real 模式）
+```
+
+面板即時顯示該角色最新報告（輪次／判定／依賴／全文）與全管線狀態；`--once` 渲染一次即退出。
+
+## 換廠商（插座式座位表）
+
+席位即插座：改 `configs/seats.yaml` 即換廠商，代碼零改動。任何 OpenAI 相容端點（Groq／Together／OpenRouter／Ollama／vLLM…）加 `base_url` 即接：
+
+```yaml
+seats:
+  coder:
+    provider: nvidia            # 或 openai
+    model: llama-3.3-70b-instruct
+    base_url: https://api.groq.com/openai/v1
+```
+
+內建供應商：`nvidia`（NIM）、`openai`、`anthropic`、`google`、`deepseek`，環境變數各為 `NVIDIA_API_KEY`／`OPENAI_API_KEY`／`ANTHROPIC_API_KEY`／`GOOGLE_API_KEY`／`DEEPSEEK_API_KEY`。
+
+## CLI 旗標
 
 ```bash
 npm start -- --mock --json "任務"        # 機器可讀 JSON 輸出

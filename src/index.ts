@@ -24,3 +24,4 @@ export type {
   PipelineStep,
   PipelineResult,
 } from "./pipeline/report-pipeline";
+export { runWatcher, renderPanel, latestReport, chainStatus } from "./pipeline/watcher";
