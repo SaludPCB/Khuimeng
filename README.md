@@ -49,6 +49,24 @@ npm start -- "你想要完成的任務"
 npm test
 ```
 
+## 互動式 TUI
+
+像 opencode／Claude Code 的互動介面，核心是三角色治理——跟 Coder 對話，用指令召喚審查與驗收：
+
+```bash
+npm start -- tui --mock    # mock 模式（免 key 體驗介面）
+npm start -- tui           # real 模式（設 NVIDIA_API_KEY）
+```
+
+| 輸入 | 作用 |
+|---|---|
+| 直接打字 | 與 Coder 多輪對話（保留上下文，↑↓ 召回歷史） |
+| `/viewer` | 召喚 Viewer 審查當前產出（報告落盤 reports/pipeline） |
+| `/tester` | 召喚 Tester 驗收當前產出 |
+| `/task "任務"` | 跑全自動管道（雙門檻＋熔斷） |
+| `/model coder 模型ID` | 熱切換席位模型 |
+| `/seats` `/reports` `/clear` `/help` `/exit` | 座位表／報告清單／清空／說明／離開 |
+
 ## 三視窗觀測（watch）
 
 開三個終端機視窗各盯一個大腦，第四個視窗跑任務——三個工位依序開工的畫面：

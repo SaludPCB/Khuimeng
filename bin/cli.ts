@@ -19,9 +19,10 @@ const VERSION = "0.1.0";
 const HELP = `Khuimeng 報告管道 CLI v${VERSION}
 
 用法：
-  khuimeng [旗標] "任務"            執行任務（real 模式）
-  khuimeng --mock "任務"            mock 模式（免 API key）
-  khuimeng watch <角色> [旗標]      觀測面板：即時盯某角色的報告產出
+  khuimeng tui [--mock]              互動式 TUI（跟 Coder 對話，/viewer /tester 召喚治理）
+  khuimeng [旗標] "任務"              執行任務（real 模式）
+  khuimeng --mock "任務"              mock 模式（免 API key）
+  khuimeng watch <角色> [旗標]        觀測面板：即時盯某角色的報告產出
 
 watch 角色：coder | viewer | tester（開三個終端機視窗各跑一個，即是三視窗觀測）
 watch 旗標：--reports-dir <路徑>（同跑任務的目錄）、--match <關鍵字>（只盯某任務）、--once（渲染一次即退出）
@@ -242,7 +243,12 @@ async function runMain(argv: string[]): Promise<void> {
 // ── 分派 ─────────────────────────────────────────────────────
 
 const argv = process.argv.slice(2);
-if (argv[0] === "watch") {
+if (argv[0] === "tui") {
+  const mock = argv.includes("--mock");
+  const root = resolve(import.meta.dirname, "..");
+  const { runTui } = await import("../src/tui/app");
+  runTui({ mock, root });
+} else if (argv[0] === "watch") {
   const code = runWatchCommand(argv.slice(1));
   // 失敗立即退出；成功交還事件迴圈——
   // once 模式渲染完自然結束，連續模式由 setInterval 保持存活（嚴禁 process.exit 打斷輪詢）
