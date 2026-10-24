@@ -5,18 +5,37 @@ import { createRegistry } from "../src/llm/factory";
 import { loadSeats } from "../src/agent/seat-loader";
 import { ReportPipeline, ROLES, type PipelineRole } from "../src/pipeline/report-pipeline";
 import { runWatcher } from "../src/pipeline/watcher";
+import { getLang, parseLang, setLang, t } from "../src/i18n";
 
-// Khuimeng 報告管道 CLI
-//   npm start -- "任務"                    real 模式（三席位各需對應 API key）
-//   npm start -- --mock "任務"             mock 模式（免 API key，模擬報告跑通全鏈）
-//   npm start -- -f 任務書.md --mock       任務書從檔案讀入
-//   npm start -- watch coder|viewer|tester 三視窗觀測（各開一個終端機）
+// Khuimeng 報告管道 CLI / Khuimeng report pipeline CLI
+//   npm start -- "任務"                    real 模式
+//   npm start -- --mock "任務"             mock 模式（免 API key）
+//   npm start -- tui [--mock]              互動式 TUI
+//   npm start -- watch coder|viewer|tester 三視窗觀測
+//   --lang en | zh-TW                      介面語系（預設隨系統；KHUIMENG_LANG 亦可）
 //
-// Exit codes: 0=delivered（雙門檻通過）｜1=circuit_break（熔斷轉人工）｜2=使用錯誤或校驗失敗
+// Exit codes: 0=delivered | 1=circuit_break | 2=usage error / validation failure
 
 const VERSION = "0.1.0";
 
-const HELP = `Khuimeng 報告管道 CLI v${VERSION}
+// 早期掃描 --lang，讓 --help 與所有訊息即刻套用語系
+const rawArgv = process.argv.slice(2);
+for (let i = 0; i < rawArgv.length; i++) {
+  if (rawArgv[i] === "--lang") {
+    const v = rawArgv[i + 1];
+    if (v) {
+      const lang = parseLang(v);
+      if (lang) setLang(lang);
+      else {
+        console.error(t("errPrefix", { msg: t("needLang") }));
+        process.exit(2);
+      }
+      i++;
+    }
+  }
+}
+
+const HELP_ZH = `Khuimeng 報告管道 CLI v${VERSION}
 
 用法：
   khuimeng tui [--mock]              互動式 TUI（跟 Coder 對話，/viewer /tester 召喚治理）
@@ -25,7 +44,7 @@ const HELP = `Khuimeng 報告管道 CLI v${VERSION}
   khuimeng watch <角色> [旗標]        觀測面板：即時盯某角色的報告產出
 
 watch 角色：coder | viewer | tester（開三個終端機視窗各跑一個，即是三視窗觀測）
-watch 旗標：--reports-dir <路徑>（同跑任務的目錄）、--match <關鍵字>（只盯某任務）、--once（渲染一次即退出）
+watch 旗標：--reports-dir <路徑>、--match <關鍵字>（只盯某任務）、--once（渲染一次即退出）
 watch 語義：啟動時進入待命（舊報告只在「上次」一行帶過）；啟動後新落盤的報告才會上屏
 
 旗標：
@@ -33,7 +52,8 @@ watch 語義：啟動時進入待命（舊報告只在「上次」一行帶過�
   -f, --task-file <路徑>      任務書從檔案讀入（之後的位置參數忽略）
   --max-iterations <N>       覆寫熔斷上限（預設讀 seats.yaml，當前 3）
   --reports-dir <路徑>        報告輸出目錄（預設 reports/pipeline）
-  --signature <名稱>          報告檔名署名（預設 mock 模式 "mock"、real 模式 "pipeline"）
+  --signature <名稱>          報告檔名署名
+  --lang en | zh-TW           介面語系（en 同時切換英文角色檔）
   --json                     只輸出機器可讀 JSON（抑制過程 log）
   --version                  顯示版本
   -h, --help                 顯示本說明
@@ -45,6 +65,42 @@ watch 語義：啟動時進入待命（舊報告只在「上次」一行帶過�
   npm start -- --mock "你的任務"     # 或 real 模式（設 NVIDIA_API_KEY）
 
 Exit codes: 0=delivered｜1=circuit_break（熔斷轉人工）｜2=使用錯誤或校驗失敗`;
+
+const HELP_EN = `Khuimeng report pipeline CLI v${VERSION}
+
+Usage:
+  khuimeng tui [--mock]              Interactive TUI (chat with Coder; /viewer /tester summon governance)
+  khuimeng [flags] "task"            Run a task (real mode)
+  khuimeng --mock "task"             Mock mode (no API key)
+  khuimeng watch <role> [flags]      Observation panel for one role's reports
+
+watch roles: coder | viewer | tester (three terminals = three-window observation)
+watch flags: --reports-dir <path>, --match <keyword> (one task only), --once (render once and exit)
+watch semantics: starts in standby (old reports shown as one "Last" line); only reports
+                 written after launch are displayed
+
+Flags:
+  --mock, --dry-run          Mock mode with built-in simulated reports
+  -f, --task-file <path>      Read the task from a file
+  --max-iterations <N>       Override the circuit-breaker limit (seats.yaml default: 3)
+  --reports-dir <path>        Report output directory (default reports/pipeline)
+  --signature <name>          Report filename signature
+  --lang en | zh-TW           UI language (en also switches English role files)
+  --json                     Machine-readable JSON output only
+  --version                  Show version
+  -h, --help                 Show this help
+
+Three-window example (four terminals):
+  npm start -- watch coder
+  npm start -- watch viewer
+  npm start -- watch tester
+  npm start -- --mock "your task"    # or real mode (set NVIDIA_API_KEY)
+
+Exit codes: 0=delivered | 1=circuit_break | 2=usage error / validation failure`;
+
+function helpText(): string {
+  return getLang() === "en" ? HELP_EN : HELP_ZH;
+}
 
 // ── watch 子命令 ──────────────────────────────────────────────
 
@@ -58,14 +114,22 @@ function runWatchCommand(argv: string[]): number {
     if (a === "--reports-dir") {
       const next = argv[++i];
       if (!next) {
-        console.error("錯誤: --reports-dir 需要目錄路徑");
+        console.error(t("errPrefix", { msg: t("needPath", { flag: a }) }));
         return 2;
       }
       reportsDir = next;
+    } else if (a === "--lang") {
+      const next = argv[++i];
+      const lang = next ? parseLang(next) : null;
+      if (!next || !lang) {
+        console.error(t("errPrefix", { msg: t("needLang") }));
+        return 2;
+      }
+      setLang(lang);
     } else if (a === "--match") {
       const next = argv[++i];
       if (!next) {
-        console.error("錯誤: --match 需要關鍵字（任務 slug）");
+        console.error(t("errPrefix", { msg: t("needKeyword") }));
         return 2;
       }
       match = next;
@@ -73,17 +137,21 @@ function runWatchCommand(argv: string[]): number {
       once = true;
     } else if (!a.startsWith("-")) {
       if (role) {
-        console.error(`錯誤: 多餘參數 ${a}（watch 只吃一個角色）`);
+        console.error(t("errPrefix", { msg: t("extraWatchArg", { arg: a }) }));
         return 2;
       }
       role = a;
     } else {
-      console.error(`錯誤: watch 不支援旗標 ${a}`);
+      console.error(t("errPrefix", { msg: t("watchNoFlag", { flag: a }) }));
       return 2;
     }
   }
   if (!ROLES.includes(role as PipelineRole)) {
-    console.error(`錯誤: watch 角色須為 coder|viewer|tester，實際: ${role || "（未提供）"}`);
+    console.error(
+      t("errPrefix", {
+        msg: t("watchRoleInvalid", { role: role || t("notProvided") }),
+      }),
+    );
     return 2;
   }
   runWatcher(role as PipelineRole, resolve(reportsDir), {
@@ -121,28 +189,35 @@ function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; m
         break;
       case "-f":
       case "--task-file": {
-        if (!next) return { ok: false, message: `${a} 需要檔案路徑` };
+        if (!next) return { ok: false, message: t("needFile", { flag: a }) };
         args.taskFile = next;
+        i++;
+        break;
+      }
+      case "--lang": {
+        const lang = next ? parseLang(next) : null;
+        if (!next || !lang) return { ok: false, message: t("needLang") };
+        setLang(lang);
         i++;
         break;
       }
       case "--max-iterations": {
         const n = Number(next);
         if (!next || !Number.isInteger(n) || n < 1) {
-          return { ok: false, message: `${a} 需要正整數，實際: ${String(next)}` };
+          return { ok: false, message: t("needPositiveInt", { flag: a, value: String(next) }) };
         }
         args.maxIterations = n;
         i++;
         break;
       }
       case "--reports-dir": {
-        if (!next) return { ok: false, message: `${a} 需要目錄路徑` };
+        if (!next) return { ok: false, message: t("needPath", { flag: a }) };
         args.reportsDir = next;
         i++;
         break;
       }
       case "--signature": {
-        if (!next) return { ok: false, message: `${a} 需要署名` };
+        if (!next) return { ok: false, message: t("needSignature", { flag: a }) };
         args.signature = next;
         i++;
         break;
@@ -155,10 +230,12 @@ function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; m
         process.exit(0);
       case "-h":
       case "--help":
-        console.log(HELP);
+        console.log(helpText());
         process.exit(0);
       default:
-        if (a.startsWith("-")) return { ok: false, message: `未知旗標: ${a}（--help 看說明）` };
+        if (a.startsWith("-")) {
+          return { ok: false, message: t("unknownFlag", { flag: a }) };
+        }
         positional.push(a);
     }
   }
@@ -166,20 +243,20 @@ function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; m
     try {
       args.topic = readFileSync(resolve(args.taskFile), "utf-8").trim();
     } catch {
-      return { ok: false, message: `任務書讀取失敗: ${args.taskFile}` };
+      return { ok: false, message: t("taskFileReadFail", { file: args.taskFile }) };
     }
-    if (!args.topic) return { ok: false, message: `任務書為空: ${args.taskFile}` };
+    if (!args.topic) return { ok: false, message: t("taskFileEmpty", { file: args.taskFile }) };
   } else {
     args.topic = positional.join(" ");
   }
-  if (!args.topic) args.topic = "AI 是否會取代軟體工程師？";
+  if (!args.topic) args.topic = t("defaultTopic");
   return { ok: true, args };
 }
 
 async function runMain(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
-    console.error(`錯誤: ${parsed.message}`);
+    console.error(t("errPrefix", { msg: parsed.message }));
     process.exit(2);
   }
   const { args } = parsed;
@@ -196,7 +273,11 @@ async function runMain(argv: string[]): Promise<void> {
 
   if (!args.json) {
     console.log(
-      `Khuimeng 報告管道 v${VERSION} | 模式: ${args.mock ? "mock（免 API key）" : "real"} | 議題: ${args.topic}`,
+      t("banner", {
+        version: VERSION,
+        mode: args.mock ? t("modeMock") : t("modeReal"),
+        topic: args.topic,
+      }),
     );
   }
 
@@ -225,16 +306,16 @@ async function runMain(argv: string[]): Promise<void> {
         ),
       );
     } else if (result.status === "delivered") {
-      console.log("✅ 雙門檻通過（viewer approve ＋ tester pass），任務交付。");
+      console.log(t("delivered"));
     } else {
-      console.log("⛔ 熔斷：轉人工裁決。");
+      console.log(t("circuit"));
     }
     process.exitCode = result.status === "delivered" ? 0 : 1;
   } catch (e) {
     if (args.json) {
       console.log(JSON.stringify({ error: (e as Error).message, logs }, null, 2));
     } else {
-      console.error(`⛔ 執行失敗：${(e as Error).message}`);
+      console.error(t("runFail", { msg: (e as Error).message }));
     }
     process.exitCode = 2;
   }
@@ -245,6 +326,17 @@ async function runMain(argv: string[]): Promise<void> {
 const argv = process.argv.slice(2);
 if (argv[0] === "tui") {
   const mock = argv.includes("--mock");
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--lang") {
+      const v = argv[i + 1];
+      const lang = v ? parseLang(v) : null;
+      if (!v || !lang) {
+        console.error(t("errPrefix", { msg: t("needLang") }));
+        process.exit(2);
+      }
+      setLang(lang);
+    }
+  }
   const root = resolve(import.meta.dirname, "..");
   const { runTui } = await import("../src/tui/app");
   runTui({ mock, root });

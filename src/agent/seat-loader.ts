@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import type { ProviderName } from "../llm/types";
+import { t } from "../i18n";
 
 export interface SeatConfig {
   provider: ProviderName;
@@ -28,16 +29,14 @@ export function loadSeats(configPath = "configs/seats.yaml"): SeatsConfig {
   const file = readFileSync(resolve(configPath), "utf-8");
   const config = parse(file) as SeatsConfig;
   if (!config.seats || typeof config.seats !== "object") {
-    throw new Error(`seats.yaml 缺少 seats 區塊: ${configPath}`);
+    throw new Error(t("seatNoSeats", { path: configPath }));
   }
   if (
     !config.pipeline ||
     config.pipeline.mode !== "report_chain" ||
     typeof config.pipeline.max_iterations !== "number"
   ) {
-    throw new Error(
-      `seats.yaml 缺少 pipeline 區塊（mode: report_chain + max_iterations）: ${configPath}`,
-    );
+    throw new Error(t("seatNoPipeline", { path: configPath }));
   }
   return config;
 }

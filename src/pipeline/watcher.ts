@@ -1,8 +1,14 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseReport, ROLES, type PipelineRole } from "./report-pipeline";
+import { getLang, t } from "../i18n";
 
 /** 報告條目：檔名＋落盤時間（mtime） */
+/** 面板標籤對齊：zh 標籤寬 5（2 字＋3 空格）、en 寬 7 */
+function label(text: string): string {
+  return text.padEnd(getLang() === "en" ? 7 : 5, " ");
+}
+
 export interface ReportEntry {
   file: string;
   mtimeMs: number;
@@ -59,9 +65,9 @@ export function chainStatus(dir: string, filter: WatchFilter = {}): string {
     if (!file) return `  ${r.padEnd(6)} —`;
     try {
       const { fm } = parseReport(readFileSync(resolve(dir, file), "utf-8"));
-      return `  ${r.padEnd(6)} 第 ${fm.iteration} 輪 · ${fm.verdict}`;
+      return `  ${r.padEnd(6)} ${t("chainRound", { n: fm.iteration, verdict: fm.verdict })}`;
     } catch {
-      return `  ${r.padEnd(6)} ⚠ ${file} 解析失敗`;
+      return `  ${r.padEnd(6)} ${t("chainParseFail", { file })}`;
     }
   }).join("\n");
 }
@@ -91,14 +97,15 @@ export function renderPanel(
     return [
       header,
       "",
-      "  待命中…啟動後尚無新報告" +
-        (filter.match ? `（過濾：${filter.match}）` : ""),
-      ...(previous ? [`  上次   ${previous}（啟動前既有）`] : []),
+      `  ${t("watchStandby")}${filter.match ? t("watchFilterSuffix", { kw: filter.match }) : ""}`,
+      ...(previous
+        ? [`  ${label(t("watchLastLabel"))}${previous}${t("watchLastSuffix")}`]
+        : []),
       "",
-      "── 管線狀態 " + "─".repeat(42),
+      t("watchStatusTitle") + "─".repeat(42),
       chainStatus(dir, filter),
       "",
-      `（${now.toLocaleTimeString()} 刷新；Ctrl+C 離開）`,
+      t("watchFooter", { time: now.toLocaleTimeString() }),
     ].join("\n");
   }
   let meta: string;
@@ -106,14 +113,14 @@ export function renderPanel(
   try {
     const parsed = parseReport(readFileSync(resolve(dir, file), "utf-8"));
     meta = [
-      `  檔案   ${file}`,
-      `  輪次   ${parsed.fm.iteration}`,
-      `  判定   ${parsed.fm.verdict}`,
-      `  依賴   ${parsed.fm.depends_on.length > 0 ? parsed.fm.depends_on.join(", ") : "—"}`,
+      `${label(t("wFile"))}${file}`,
+      `${label(t("wRound"))}${parsed.fm.iteration}`,
+      `${label(t("wVerdict"))}${parsed.fm.verdict}`,
+      `${label(t("wDeps"))}${parsed.fm.depends_on.length > 0 ? parsed.fm.depends_on.join(", ") : "—"}`,
     ].join("\n");
     body = parsed.body.trim();
   } catch (e) {
-    meta = `  ⚠ ${file} frontmatter 解析失敗：${(e as Error).message}`;
+    meta = `  ⚠ ${file}: ${(e as Error).message}`;
     body = readFileSync(resolve(dir, file), "utf-8").trim();
   }
   return [
@@ -121,10 +128,10 @@ export function renderPanel(
     meta,
     "─".repeat(58),
     body,
-    "── 管線狀態 " + "─".repeat(42),
+    t("watchStatusTitle") + "─".repeat(42),
     chainStatus(dir, filter),
     "",
-    `（${now.toLocaleTimeString()} 刷新；Ctrl+C 離開）`,
+    t("watchFooter", { time: now.toLocaleTimeString() }),
   ].join("\n");
 }
 

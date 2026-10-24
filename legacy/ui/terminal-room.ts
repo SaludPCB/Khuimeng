@@ -1,4 +1,4 @@
-import type { BaseAgent } from "../agent/base-agent";
+import type { BaseAgent } from "../../src/agent/base-agent";
 
 export interface SpeechEvent {
   agent: BaseAgent;

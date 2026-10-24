@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { parse, stringify } from "yaml";
+import { resolveRoleFile, t } from "../i18n";
 import { createProvider, type ProviderRegistry } from "../llm/factory";
 import type { SeatConfig, SeatsConfig } from "../agent/seat-loader";
 import { parseRoleMarkdown } from "../agent/role-loader";
@@ -33,16 +34,20 @@ export type ValidationResult =
 /** 校驗報告 frontmatter：五欄齊全＋verdict 落在該角色值域 */
 export function validateFrontmatter(input: unknown): ValidationResult {
   if (typeof input !== "object" || input === null) {
-    return { ok: false, errors: ["frontmatter 不是物件"] };
+    return { ok: false, errors: [t("fmNotObject")] };
   }
   const fm = input as Record<string, unknown>;
   const errors: string[] = [];
   const role = fm.role as PipelineRole;
   if (!ROLES.includes(role)) {
-    errors.push(`role 非法: ${String(fm.role)}`);
+    errors.push(t("roleInvalid", { role: String(fm.role) }));
   } else if (!VERDICT_DOMAINS[role].includes(fm.verdict as Verdict)) {
     errors.push(
-      `verdict "${String(fm.verdict)}" 不在 ${role} 值域 [${VERDICT_DOMAINS[role].join("/")}]`,
+      t("verdictDomain", {
+        verdict: String(fm.verdict),
+        role,
+        domain: VERDICT_DOMAINS[role].join("/"),
+      }),
     );
   }
   if (
@@ -50,10 +55,10 @@ export function validateFrontmatter(input: unknown): ValidationResult {
     !Number.isInteger(fm.iteration) ||
     fm.iteration < 1
   ) {
-    errors.push(`iteration 須為正整數，實際: ${String(fm.iteration)}`);
+    errors.push(t("iterationInvalid", { value: String(fm.iteration) }));
   }
   for (const key of ["depends_on", "target_files"] as const) {
-    if (!Array.isArray(fm[key])) errors.push(`${key} 須為陣列`);
+    if (!Array.isArray(fm[key])) errors.push(t("keyArray", { key }));
   }
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, fm: fm as unknown as ReportFrontmatter };
@@ -63,11 +68,11 @@ export function validateFrontmatter(input: unknown): ValidationResult {
 export function parseReport(md: string): { fm: ReportFrontmatter; body: string } {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(md);
   if (!m || m[1] === undefined) {
-    throw new Error("報告缺少 --- frontmatter 圍欄");
+    throw new Error(t("fmMissingFence"));
   }
   const v = validateFrontmatter(parse(m[1]));
   if (!v.ok) {
-    throw new Error(`frontmatter 校驗失敗: ${v.errors.join("；")}`);
+    throw new Error(t("fmInvalid", { errors: v.errors.join("；") }));
   }
   return { fm: v.fm, body: m[2] ?? "" };
 }
@@ -171,11 +176,11 @@ export class ReportPipeline {
 
   constructor(opts: ReportPipelineOptions) {
     if (opts.seats.pipeline.mode !== "report_chain") {
-      throw new Error(`不支援的 pipeline.mode: ${opts.seats.pipeline.mode}`);
+      throw new Error(t("unsupportedMode", { mode: opts.seats.pipeline.mode }));
     }
     for (const role of ROLES) {
       if (!opts.seats.seats[role]) {
-        throw new Error(`seats.yaml 缺少角色座席: ${role}`);
+        throw new Error(t("missingSeat", { role }));
       }
     }
     this.seats = opts.seats;
@@ -186,12 +191,12 @@ export class ReportPipeline {
     this.maxIterations =
       opts.maxIterations ?? this.seats.pipeline.max_iterations;
     if (!Number.isInteger(this.maxIterations) || this.maxIterations < 1) {
-      throw new Error(`max_iterations 須為正整數，實際: ${this.maxIterations}`);
+      throw new Error(t("maxIterInvalid", { value: this.maxIterations }));
     }
     this.signature = opts.signature ?? (this.mock ? "mock" : "pipeline");
     this.log = opts.log ?? (() => {});
     if (!this.mock && !this.registry) {
-      throw new Error("real 模式需要 registry（或改用 mock: true）");
+      throw new Error(t("needRegistry"));
     }
   }
 
@@ -208,16 +213,20 @@ export class ReportPipeline {
     let lastViewerFile = "";
     const steps: PipelineStep[] = [];
 
-    this.log(
-      `▶ 管道啟動（mode=report_chain, max_iterations=${max}, mock=${this.mock}）`,
-    );
+    this.log(t("logStart", { mode: "report_chain", max, mock: String(this.mock) }));
 
     for (;;) {
       const produced = await this.produce(role, iteration, task, upstream, lastCoderFile, lastViewerFile);
       const action = route(role, produced.fm.verdict, iteration, max, viewerApproved);
       steps.push({ role, iteration, verdict: produced.fm.verdict, file: basename(produced.file), action });
       this.log(
-        `  [${role} #${iteration}] verdict=${produced.fm.verdict} → ${action}（${basename(produced.file)}）`,
+        t("logStep", {
+          role,
+          n: iteration,
+          verdict: produced.fm.verdict,
+          action,
+          file: basename(produced.file),
+        }),
       );
 
       if (role === "coder") lastCoderFile = produced.file;
@@ -229,7 +238,7 @@ export class ReportPipeline {
 
       if (action === "delivered") return { status: "delivered", steps };
       if (action === "circuit_break") {
-        this.log(`⛔ 熔斷：退回次數達上限（${max}），轉人工裁決。`);
+        this.log(t("logCircuitBreak", { max }));
         return { status: "circuit_break", steps };
       }
       if (action === "to_viewer") role = "viewer";
@@ -238,7 +247,7 @@ export class ReportPipeline {
         role = "coder";
         iteration += 1;
         viewerApproved = false;
-        upstream = `${upstream}\n\n（上一輪被退回，請依 Viewer／Tester 意見修改後重交，iteration=${iteration}）`;
+        upstream = `${upstream}\n\n${t("upstreamRejected", { n: iteration })}`;
       }
     }
   }
@@ -249,9 +258,7 @@ export class ReportPipeline {
       const parsed = parseRoleMarkdown(this.roleFileRaw(role), role);
       const fm = parsed.frontmatter;
       if (!fm || fm.role !== role || fm.verdict !== "na") {
-        throw new Error(
-          `角色檢查失敗：${role} 定義檔 frontmatter 須 role=${role}、verdict=na`,
-        );
+        throw new Error(t("roleFileInvalid", { role }));
       }
     }
   }
@@ -260,9 +267,7 @@ export class ReportPipeline {
     for (const role of ROLES) {
       const seat = this.seats.seats[role] as SeatConfig;
       if (!this.providerFor(seat)) {
-        throw new Error(
-          `供應商 ${seat.provider} 未設定 API key（請設定環境變數）或改用 --mock`,
-        );
+        throw new Error(t("providerNoKey", { provider: seat.provider }));
       }
     }
   }
@@ -280,7 +285,7 @@ export class ReportPipeline {
     const seat = this.seats.seats[role] as SeatConfig;
     const provider = this.providerFor(seat);
     if (!provider) {
-      throw new Error(`供應商 ${seat.provider} 未設定 API key 或改用 --mock`);
+      throw new Error(t("providerNoKeyShort", { provider: seat.provider }));
     }
     const built = new BaseAgent({
       name: role,
@@ -297,7 +302,7 @@ export class ReportPipeline {
     const path = seat.system_prompt_file
       ? resolve(seat.system_prompt_file)
       : resolve(this.agentsDir, `${role}.md`);
-    return readFileSync(path, "utf-8");
+    return readFileSync(resolveRoleFile(path), "utf-8");
   }
 
   private async produce(
@@ -326,15 +331,15 @@ export class ReportPipeline {
       parsed = parseReport(md);
     } catch (e) {
       throw new Error(
-        `${(e as Error).message}（模型回覆開頭：${JSON.stringify(raw.slice(0, 120))}）`,
+        `${(e as Error).message}${t("replyHead", { head: JSON.stringify(raw.slice(0, 120)) })}`,
       );
     }
     const { fm, body } = parsed;
     if (fm.role !== role) {
-      throw new Error(`報告 role=${fm.role} 與預期 ${role} 不符`);
+      throw new Error(t("roleMismatch", { got: fm.role, want: role }));
     }
     if (fm.iteration !== iteration) {
-      throw new Error(`報告 iteration=${fm.iteration} 與預期 ${iteration} 不符`);
+      throw new Error(t("iterMismatch", { got: fm.iteration, want: iteration }));
     }
     const file = this.writeReport(role, iteration, task, fm, body);
     return { fm, body, file };

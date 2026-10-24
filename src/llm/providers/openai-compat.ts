@@ -1,5 +1,6 @@
 import type { LLMProvider, LLMRequest, LLMResponse, ProviderName } from "../types";
 import { withRetry } from "../retry";
+import { t } from "../../i18n";
 
 export interface OpenAICompatOptions {
   name: ProviderName;
@@ -90,9 +91,12 @@ export class OpenAICompatProvider implements LLMProvider {
     }
     if (!content) {
       throw new Error(
-        `${this.name} 串流結束但無正文內容` +
+        t("streamNoContent", { name: this.name }) +
           (reasoningChars > 0
-            ? `（思考耗 ${reasoningChars} 字元，疑似燒盡 max_tokens=${req.maxTokens ?? "default"}，請換非思考模型或提高額度）`
+            ? t("streamThinkBurn", {
+                chars: reasoningChars,
+                max: req.maxTokens ?? "default",
+              })
             : ""),
       );
     }

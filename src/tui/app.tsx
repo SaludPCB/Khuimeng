@@ -8,18 +8,34 @@ import {
   type TuiContext,
   type TuiMessage,
 } from "./commands";
+import { t } from "../i18n";
 
-const KIND_STYLE: Record<MessageKind, { color: string; label: string }> = {
-  user: { color: "cyan", label: "你" },
-  coder: { color: "green", label: "Coder" },
-  viewer: { color: "yellow", label: "Viewer" },
-  tester: { color: "magenta", label: "Tester" },
-  system: { color: "gray", label: "系統" },
-  error: { color: "red", label: "錯誤" },
-  task: { color: "blue", label: "管道" },
-};
+function kindLabel(kind: MessageKind): string {
+  switch (kind) {
+    case "user":
+      return t("lblYou");
+    case "system":
+      return t("lblSystem");
+    case "error":
+      return t("lblError");
+    case "task":
+      return t("lblTask");
+    default:
+      return kind.charAt(0).toUpperCase() + kind.slice(1);
+  }
+}
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+const KIND_COLORS: Record<MessageKind, string> = {
+  user: "cyan",
+  coder: "green",
+  viewer: "yellow",
+  tester: "magenta",
+  system: "gray",
+  error: "red",
+  task: "blue",
+};
 
 function Spinner({ label }: { label: string }) {
   const [i, setI] = useState(0);
@@ -29,7 +45,7 @@ function Spinner({ label }: { label: string }) {
   }, []);
   return (
     <Text color="yellow">
-      {SPINNER_FRAMES[i % SPINNER_FRAMES.length]} {label}思考中…
+      {SPINNER_FRAMES[i % SPINNER_FRAMES.length]} {t("spinnerThinking", { role: label })}
     </Text>
   );
 }
@@ -65,9 +81,7 @@ export function App(props: {
     };
     ctxRef.current.messages.push({
       kind: "system",
-      text: props.mock
-        ? "Khuimeng TUI（mock 模式）— 直接輸入訊息跟 Coder 對話；/help 看指令。"
-        : "Khuimeng TUI — 直接輸入訊息跟 Coder 對話；/help 看指令。",
+      text: props.mock ? t("tuiWelcomeMock") : t("tuiWelcome"),
     });
   }
   const ctx = ctxRef.current;
@@ -122,14 +136,15 @@ export function App(props: {
     <Box flexDirection="column">
       <Static items={messages}>
         {(m: TuiMessage, i: number) => {
-          const s = KIND_STYLE[m.kind];
+          const color = KIND_COLORS[m.kind];
+          const label = kindLabel(m.kind);
           return (
-            <Box key={i} flexDirection="column" marginBottom={m.meta ? 0 : 0}>
+            <Box key={i} flexDirection="column">
               <Box>
-                <Text color={s.color} bold>
-                  [{s.label}]{" "}
+                <Text color={color} bold>
+                  [{label}]{" "}
                 </Text>
-                <Text color={s.color}>{m.text}</Text>
+                <Text color={color}>{m.text}</Text>
               </Box>
               {m.meta ? (
                 <Text dimColor>　└─ {m.meta}</Text>
@@ -141,7 +156,7 @@ export function App(props: {
       {busy ? <Spinner label={busy === "task" ? "管道" : busy} /> : null}
       <Box borderStyle="round" flexDirection="column" paddingX={1}>
         <Text dimColor>
-          {props.mock ? "mock" : "real"} · {seatsLine} · ↑↓ 歷史 · /help 指令
+          {props.mock ? "mock" : "real"} · {seatsLine} · {t("statusHints")}
         </Text>
         <Box>
           <Text bold color="cyan">
@@ -161,7 +176,7 @@ export function runTui(opts: {
   reportsDir?: string;
 }): void {
   if (!process.stdin.isTTY) {
-    console.error("錯誤: tui 需要互動式終端機（Raw mode）——請直接在終端機執行，不要管線/重導向。");
+    console.error(t("tuiNonTty"));
     process.exit(2);
   }
   const seats = loadSeats(opts.root + "/configs/seats.yaml");

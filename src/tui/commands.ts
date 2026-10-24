@@ -15,6 +15,7 @@ import {
   type ReportFrontmatter,
 } from "../pipeline/report-pipeline";
 import { roleReports } from "../pipeline/watcher";
+import { getLang, resolveRoleFile, t } from "../i18n";
 
 // ── 訊息模型 ──────────────────────────────────────────────────
 
@@ -80,18 +81,7 @@ export function parseCommand(input: string): Command {
   }
 }
 
-export const HELP_TEXT = [
-  "指令：",
-  "  直接輸入訊息        與 Coder 對話（保留上下文）",
-  "  /viewer            召喚 Viewer 審查當前 Coder 產出",
-  "  /tester            召喚 Tester 驗收當前產出",
-  '  /task "任務"       跑全自動管道（雙門檻＋熔斷）',
-  "  /model 角色 模型ID  換席位模型（如 /model coder z-ai/glm-5.3-flash）",
-  "  /seats             查看座位表",
-  "  /reports           列最近報告",
-  "  /clear             清空對話",
-  "  /exit              離開",
-].join("\n");
+export const HELP_TEXT: string = t("tuiHelp");
 
 // ── 執行環境（TUI 注入） ──────────────────────────────────────
 
@@ -130,7 +120,7 @@ function buildAgent(ctx: TuiContext, role: PipelineRole): BaseAgent | null {
     ? createProvider(seat.provider, undefined, seat.base_url)
     : ctx.registry?.get(seat.provider);
   if (!provider) return null;
-  const raw = readFileSync(resolve(ctx.agentsDir, `${role}.md`), "utf-8");
+  const raw = readFileSync(resolveRoleFile(resolve(ctx.agentsDir, `${role}.md`)), "utf-8");
   const agent = new BaseAgent({
     name: role,
     role: parseRoleMarkdown(raw, role),
@@ -152,16 +142,20 @@ function nextIteration(ctx: TuiContext, role: PipelineRole): number {
 }
 
 function reportInstruction(role: PipelineRole, iteration: number): string {
-  return (
-    `請依你的角色定義輸出 Markdown 報告。輸出格式（嚴格遵守）：\n` +
-    `第 1 行必須是 ---（之前不得有任何字元）；接著 YAML 五欄：role: ${role}、iteration: ${iteration}、depends_on: []、target_files: []、verdict: <值>；再一行 ---，之後是報告本文。verdict 須落在你的值域 [${VERDICT_DOMAINS[role].join("/")}]。`
-  );
+  return t("reportInstruction", {
+    role,
+    iteration,
+    domain: VERDICT_DOMAINS[role].join("/"),
+  });
 }
 
 /** 對話上下文摘要（供 viewer/tester 當審查來源），截最後 12 輪 */
 export function transcriptDigest(chat: ChatTurn[], keep = 12): string {
   const slice = chat.slice(-keep * 2);
-  return slice.map((t) => `${t.role === "user" ? "老闆" : "Coder"}：${t.content}`).join("\n\n");
+  const sep = getLang() === "en" ? ": " : "：";
+  return slice
+    .map((turn) => `${turn.role === "user" ? t("digestBoss") : "Coder"}${sep}${turn.content}`)
+    .join("\n\n");
 }
 
 function persistReport(
@@ -221,7 +215,7 @@ export function reportPreview(body: string, keep = 28): string {
 async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<void> {
   const digest = transcriptDigest(ctx.chat);
   if (!digest) {
-    say(ctx, "error", `尚無對話內容可審查——先跟 Coder 聊幾句再召喚 ${role}。`);
+    say(ctx, "error", t("noChatYet", { role }));
     return;
   }
   const iteration = nextIteration(ctx, role);
@@ -236,7 +230,7 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
     } else {
       const agent = buildAgent(ctx, role);
       if (!agent) {
-        say(ctx, "error", `席位 ${role} 的供應商不可用（缺 API key？）或改用 --mock`);
+        say(ctx, "error", t("seatUnavailable", { role }));
         return;
       }
       const raw = await agent.speak([
@@ -256,10 +250,10 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
       ctx,
       role,
       reportPreview(body),
-      `verdict: ${fm.verdict} · 第 ${fm.iteration} 輪 · 已存 ${file}`,
+      t("metaVerdict", { verdict: fm.verdict, n: fm.iteration, file }),
     );
   } catch (e) {
-    say(ctx, "error", `${role} 報告失敗：${(e as Error).message}`);
+    say(ctx, "error", t("reportFail", { role, msg: (e as Error).message }));
   } finally {
     ctx.busy(null);
   }
@@ -268,7 +262,7 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
 // ── 對話（Coder） ─────────────────────────────────────────────
 
 function mockCoderReply(text: string): string {
-  return `（mock 模式）收到：「${text.slice(0, 60)}」\n這是模擬回覆——設定 NVIDIA_API_KEY 並以 npm start -- tui（不加 --mock）啟動，即為真 LLM 對話。`;
+  return t("mockCoderReply", { text: text.slice(0, 60) });
 }
 
 async function chatWithCoder(ctx: TuiContext, text: string): Promise<void> {
@@ -282,7 +276,7 @@ async function chatWithCoder(ctx: TuiContext, text: string): Promise<void> {
     } else {
       const agent = buildAgent(ctx, "coder");
       if (!agent) {
-        say(ctx, "error", "coder 席位供應商不可用（缺 API key？）或改用 --mock");
+        say(ctx, "error", t("seatUnavailable", { role: "coder" }));
         return;
       }
       reply = await agent.speak(
@@ -295,7 +289,7 @@ async function chatWithCoder(ctx: TuiContext, text: string): Promise<void> {
     ctx.chat.push({ role: "coder", content: reply });
     say(ctx, "coder", reply);
   } catch (e) {
-    say(ctx, "error", `Coder 回覆失敗：${(e as Error).message}`);
+    say(ctx, "error", t("coderFail", { msg: (e as Error).message }));
   } finally {
     ctx.busy(null);
   }
@@ -309,7 +303,7 @@ async function runTask(ctx: TuiContext, task: string): Promise<void> {
     return;
   }
   ctx.busy("task");
-  say(ctx, "task", `▶ 全自動管道啟動：${task}`);
+  say(ctx, "task", t("taskStart", { task }));
   try {
     const pipeline = new ReportPipeline({
       seats: ctx.seats,
@@ -324,12 +318,10 @@ async function runTask(ctx: TuiContext, task: string): Promise<void> {
     say(
       ctx,
       "system",
-      result.status === "delivered"
-        ? "✅ 雙門檻通過，任務交付。"
-        : "⛔ 熔斷：轉人工裁決。",
+      result.status === "delivered" ? t("taskDelivered") : t("taskCircuit"),
     );
   } catch (e) {
-    say(ctx, "error", `管道失敗：${(e as Error).message}`);
+    say(ctx, "error", t("pipelineFail", { msg: (e as Error).message }));
   } finally {
     ctx.busy(null);
   }
@@ -355,23 +347,23 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
       return;
     case "model": {
       if (!ROLES.includes(cmd.role as PipelineRole)) {
-        say(ctx, "error", `角色須為 ${ROLES.join("|")}，如：/model coder z-ai/glm-5.3-flash`);
+        say(ctx, "error", t("modelRoleInvalid"));
         return;
       }
       if (!cmd.model) {
-        say(ctx, "error", "需提供模型 ID，如：/model coder z-ai/glm-5.3-flash");
+        say(ctx, "error", t("modelNeedId"));
         return;
       }
       (ctx.seats.seats[cmd.role] as SeatConfig).model = cmd.model;
       invalidateAgentCache();
-      say(ctx, "system", `${cmd.role} 席模型已切換為 ${cmd.model}（僅本 session 生效）`);
+      say(ctx, "system", t("modelSwitched", { role: cmd.role, model: cmd.model }));
       return;
     }
     case "seats": {
       const lines = ROLES.map(
         (r) => `  ${r.padEnd(6)} ${ctx.seats.seats[r]?.provider ?? "?"} / ${ctx.seats.seats[r]?.model ?? "?"}`,
       );
-      say(ctx, "system", `座位表：\n${lines.join("\n")}`);
+      say(ctx, "system", `${t("seatsTitle")}\n${lines.join("\n")}`);
       return;
     }
     case "reports": {
@@ -382,24 +374,24 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
         // 目錄尚不存在
       }
       if (files.length === 0) {
-        say(ctx, "system", "（尚無報告）");
+        say(ctx, "system", t("reportsNone"));
         return;
       }
       const sorted = files.slice().sort((a, b) => b.localeCompare(a)).slice(0, 10);
-      say(ctx, "system", `最近報告（前 10）：\n${sorted.map((f) => `  ${f}`).join("\n")}`);
+      say(ctx, "system", `${t("reportsRecent")}\n${sorted.map((f) => `  ${f}`).join("\n")}`);
       return;
     }
     case "clear":
       ctx.chat.length = 0;
       ctx.messages.length = 0;
-      say(ctx, "system", "已清空對話。");
+      say(ctx, "system", t("cleared"));
       return;
     case "exit":
       ctx.exit();
       return;
     case "unknown":
       if (!cmd.name) return;
-      say(ctx, "error", `未知指令：${cmd.name}（/help 看指令集）`);
+      say(ctx, "error", t("unknownCmd", { name: cmd.name }));
       return;
   }
 }

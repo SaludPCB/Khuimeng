@@ -1,4 +1,4 @@
-import type { BaseAgent } from "../agent/base-agent";
+import type { BaseAgent } from "../../src/agent/base-agent";
 import { ConsensusEvaluator, type ConsensusResult } from "./consensus";
 import { MemoryManager, type DebateTranscript } from "./memory-manager";
 
