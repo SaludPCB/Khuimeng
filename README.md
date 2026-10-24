@@ -54,13 +54,19 @@ npm test
 開三個終端機視窗各盯一個大腦，第四個視窗跑任務——三個工位依序開工的畫面：
 
 ```bash
-npm start -- watch coder    # 視窗 1：Coder 席
+npm start -- watch coder    # 視窗 1：Coder 席（啟動即待命）
 npm start -- watch viewer   # 視窗 2：Viewer 席
 npm start -- watch tester   # 視窗 3：Tester 席
 npm start -- --mock "任務"  # 視窗 4：跑任務（或 real 模式）
 ```
 
-面板即時顯示該角色最新報告（輪次／判定／依賴／全文）與全管線狀態；`--once` 渲染一次即退出。
+**待命語義**：watcher 啟動時進入待命（目錄裡的舊報告只在「上次」一行帶過，不全文上屏）；**啟動之後**新落盤的報告才會上屏，按落盤時間排序。多任務並行時用 `--match <任務slug>` 只盯特定任務：
+
+```bash
+npm start -- watch coder --match 我的任務
+```
+
+`--once` 渲染一次即退出（快速查看目前最新面板）。
 
 ## 換廠商（插座式座位表）
 

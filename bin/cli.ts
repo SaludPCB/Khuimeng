@@ -24,7 +24,8 @@ const HELP = `Khuimeng 報告管道 CLI v${VERSION}
   khuimeng watch <角色> [旗標]      觀測面板：即時盯某角色的報告產出
 
 watch 角色：coder | viewer | tester（開三個終端機視窗各跑一個，即是三視窗觀測）
-watch 旗標：--reports-dir <路徑>（同跑任務的目錄）、--once（渲染一次即退出）
+watch 旗標：--reports-dir <路徑>（同跑任務的目錄）、--match <關鍵字>（只盯某任務）、--once（渲染一次即退出）
+watch 語義：啟動時進入待命（舊報告只在「上次」一行帶過）；啟動後新落盤的報告才會上屏
 
 旗標：
   --mock, --dry-run          mock 模式，以內建模擬報告跑通全鏈
@@ -50,6 +51,7 @@ function runWatchCommand(argv: string[]): number {
   let role = "";
   let reportsDir = "reports/pipeline";
   let once = false;
+  let match: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--reports-dir") {
@@ -59,6 +61,13 @@ function runWatchCommand(argv: string[]): number {
         return 2;
       }
       reportsDir = next;
+    } else if (a === "--match") {
+      const next = argv[++i];
+      if (!next) {
+        console.error("錯誤: --match 需要關鍵字（任務 slug）");
+        return 2;
+      }
+      match = next;
     } else if (a === "--once") {
       once = true;
     } else if (!a.startsWith("-")) {
@@ -78,16 +87,12 @@ function runWatchCommand(argv: string[]): number {
   }
   runWatcher(role as PipelineRole, resolve(reportsDir), {
     once,
+    match,
     write: (panel) => {
       process.stdout.write(`\x1B[2J\x1B[H${panel}\n`);
     },
   });
   return 0;
-}
-
-const argv = process.argv.slice(2);
-if (argv[0] === "watch") {
-  process.exit(runWatchCommand(argv.slice(1)));
 }
 
 // ── 主命令：跑管道 ────────────────────────────────────────────
@@ -170,64 +175,78 @@ function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; m
   return { ok: true, args };
 }
 
-const parsed = parseArgs(argv);
-if (!parsed.ok) {
-  console.error(`錯誤: ${parsed.message}`);
-  process.exit(2);
-}
-const { args } = parsed;
+async function runMain(argv: string[]): Promise<void> {
+  const parsed = parseArgs(argv);
+  if (!parsed.ok) {
+    console.error(`錯誤: ${parsed.message}`);
+    process.exit(2);
+  }
+  const { args } = parsed;
 
-const root = resolve(import.meta.dirname, "..");
-const seats = loadSeats(resolve(root, "configs/seats.yaml"));
-const registry = args.mock ? undefined : createRegistry();
+  const root = resolve(import.meta.dirname, "..");
+  const seats = loadSeats(resolve(root, "configs/seats.yaml"));
+  const registry = args.mock ? undefined : createRegistry();
 
-const logs: string[] = [];
-const log = (line: string) => {
-  if (args.json) logs.push(line);
-  else console.log(line);
-};
+  const logs: string[] = [];
+  const log = (line: string) => {
+    if (args.json) logs.push(line);
+    else console.log(line);
+  };
 
-if (!args.json) {
-  console.log(
-    `Khuimeng 報告管道 v${VERSION} | 模式: ${args.mock ? "mock（免 API key）" : "real"} | 議題: ${args.topic}`,
-  );
-}
-
-const pipeline = new ReportPipeline({
-  seats,
-  registry,
-  mock: args.mock,
-  agentsDir: resolve(root, "agents"),
-  reportsDir: args.reportsDir
-    ? resolve(args.reportsDir)
-    : resolve(root, "reports/pipeline"),
-  maxIterations: args.maxIterations,
-  signature: args.signature,
-  log,
-});
-
-try {
-  const result = await pipeline.run(args.topic);
-
-  if (args.json) {
+  if (!args.json) {
     console.log(
-      JSON.stringify(
-        { version: VERSION, mode: args.mock ? "mock" : "real", topic: args.topic, ...result, logs },
-        null,
-        2,
-      ),
+      `Khuimeng 報告管道 v${VERSION} | 模式: ${args.mock ? "mock（免 API key）" : "real"} | 議題: ${args.topic}`,
     );
-  } else if (result.status === "delivered") {
-    console.log("✅ 雙門檻通過（viewer approve ＋ tester pass），任務交付。");
-  } else {
-    console.log("⛔ 熔斷：轉人工裁決。");
   }
-  process.exitCode = result.status === "delivered" ? 0 : 1;
-} catch (e) {
-  if (args.json) {
-    console.log(JSON.stringify({ error: (e as Error).message, logs }, null, 2));
-  } else {
-    console.error(`⛔ 執行失敗：${(e as Error).message}`);
+
+  const pipeline = new ReportPipeline({
+    seats,
+    registry,
+    mock: args.mock,
+    agentsDir: resolve(root, "agents"),
+    reportsDir: args.reportsDir
+      ? resolve(args.reportsDir)
+      : resolve(root, "reports/pipeline"),
+    maxIterations: args.maxIterations,
+    signature: args.signature,
+    log,
+  });
+
+  try {
+    const result = await pipeline.run(args.topic);
+
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          { version: VERSION, mode: args.mock ? "mock" : "real", topic: args.topic, ...result, logs },
+          null,
+          2,
+        ),
+      );
+    } else if (result.status === "delivered") {
+      console.log("✅ 雙門檻通過（viewer approve ＋ tester pass），任務交付。");
+    } else {
+      console.log("⛔ 熔斷：轉人工裁決。");
+    }
+    process.exitCode = result.status === "delivered" ? 0 : 1;
+  } catch (e) {
+    if (args.json) {
+      console.log(JSON.stringify({ error: (e as Error).message, logs }, null, 2));
+    } else {
+      console.error(`⛔ 執行失敗：${(e as Error).message}`);
+    }
+    process.exitCode = 2;
   }
-  process.exitCode = 2;
+}
+
+// ── 分派 ─────────────────────────────────────────────────────
+
+const argv = process.argv.slice(2);
+if (argv[0] === "watch") {
+  const code = runWatchCommand(argv.slice(1));
+  // 失敗立即退出；成功交還事件迴圈——
+  // once 模式渲染完自然結束，連續模式由 setInterval 保持存活（嚴禁 process.exit 打斷輪詢）
+  if (code !== 0) process.exit(code);
+} else {
+  await runMain(argv);
 }
