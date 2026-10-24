@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { parse, stringify } from "yaml";
-import type { ProviderRegistry } from "../llm/factory";
+import { createProvider, type ProviderRegistry } from "../llm/factory";
 import type { SeatConfig, SeatsConfig } from "../agent/seat-loader";
 import { parseRoleMarkdown } from "../agent/role-loader";
 import { BaseAgent } from "../agent/base-agent";
@@ -224,7 +224,7 @@ export class ReportPipeline {
   private validateProviders(): void {
     for (const role of ROLES) {
       const seat = this.seats.seats[role] as SeatConfig;
-      if (!this.registry?.get(seat.provider)) {
+      if (!this.providerFor(seat)) {
         throw new Error(
           `供應商 ${seat.provider} 未設定 API key（請設定環境變數）或改用 --mock`,
         );
@@ -232,11 +232,21 @@ export class ReportPipeline {
     }
   }
 
+  /** 席位帶 base_url 時走自建相容供應商，否則用 registry 查表 */
+  private providerFor(seat: SeatConfig) {
+    return seat.base_url
+      ? createProvider(seat.provider, undefined, seat.base_url)
+      : this.registry?.get(seat.provider);
+  }
+
   private agent(role: PipelineRole): BaseAgent {
     const cached = this.agents.get(role);
     if (cached) return cached;
     const seat = this.seats.seats[role] as SeatConfig;
-    const provider = this.registry!.get(seat.provider)!;
+    const provider = this.providerFor(seat);
+    if (!provider) {
+      throw new Error(`供應商 ${seat.provider} 未設定 API key 或改用 --mock`);
+    }
     const built = new BaseAgent({
       name: role,
       role: parseRoleMarkdown(this.roleFileRaw(role), role),

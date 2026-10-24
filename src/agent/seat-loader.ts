@@ -8,6 +8,8 @@ export interface SeatConfig {
   model: string;
   reasoning_mode?: string;
   system_prompt_file?: string;
+  /** 覆寫供應商預設端點（OpenAI 相容廠商：Groq／Together／OpenRouter／Ollama…） */
+  base_url?: string;
 }
 
 export interface PipelineConfig {

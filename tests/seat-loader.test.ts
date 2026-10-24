@@ -9,17 +9,22 @@ import { parseRoleMarkdown } from "../src/agent/role-loader";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 describe("loadSeats：真實 seats.yaml 消費", () => {
-  it("三席映射＋pipeline 熔斷設定", () => {
+  it("三席映射＋pipeline 熔斷設定（nvidia 一 key 三模型）", () => {
     const s = loadSeats(resolve(root, "configs/seats.yaml"));
     expect(Object.keys(s.seats).sort()).toEqual(["coder", "tester", "viewer"]);
     expect(s.pipeline.mode).toBe("report_chain");
     expect(s.pipeline.max_iterations).toBe(3);
-    expect(s.seats.coder?.provider).toBe("openai");
-    expect(s.seats.viewer?.provider).toBe("anthropic");
-    expect(s.seats.tester?.provider).toBe("deepseek");
+    // 三席同供應商、三個不同模型家族（llama／qwen／deepseek）
     for (const role of ["coder", "viewer", "tester"] as const) {
+      expect(s.seats[role]?.provider).toBe("nvidia");
       expect(s.seats[role]?.system_prompt_file).toBe(`agents/${role}.md`);
     }
+    const models = ["coder", "viewer", "tester"].map((r) => s.seats[r]!.model);
+    expect(new Set(models).size).toBe(3);
+    expect(models[0]).toContain("llama");
+    expect(models[1]).toContain("qwen");
+    expect(models[2]).toContain("deepseek");
+    expect(s.fallback.provider).toBe("nvidia");
   });
 
   it("缺 pipeline 區塊 fail-closed", () => {

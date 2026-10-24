@@ -2,20 +2,25 @@ import type { LLMProvider, LLMRequest, LLMResponse, ProviderName } from "./types
 import { OpenAIProvider } from "./providers/openai";
 import { AnthropicProvider } from "./providers/anthropic";
 import { DeepSeekProvider } from "./providers/deepseek";
+import { OpenAICompatProvider } from "./providers/openai-compat";
 
 export interface ProviderRegistry {
   get(name: ProviderName): LLMProvider | undefined;
   all(): LLMProvider[];
 }
 
+/** NVIDIA NIM 預設端點；其他 OpenAI 相容廠商透過 seat 的 base_url 覆寫 */
+export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+
 export function createProvider(
   name: ProviderName,
   apiKey?: string,
+  baseUrl?: string,
 ): LLMProvider | undefined {
   switch (name) {
     case "openai":
       return apiKey || process.env.OPENAI_API_KEY
-        ? new OpenAIProvider(apiKey ?? process.env.OPENAI_API_KEY!)
+        ? new OpenAIProvider(apiKey ?? process.env.OPENAI_API_KEY!, baseUrl ?? "https://api.openai.com/v1")
         : undefined;
     case "anthropic":
       return apiKey || process.env.ANTHROPIC_API_KEY
@@ -24,6 +29,14 @@ export function createProvider(
     case "deepseek":
       return apiKey || process.env.DEEPSEEK_API_KEY
         ? new DeepSeekProvider(apiKey ?? process.env.DEEPSEEK_API_KEY!)
+        : undefined;
+    case "nvidia":
+      return apiKey || process.env.NVIDIA_API_KEY
+        ? new OpenAICompatProvider({
+            name: "nvidia",
+            apiKey: apiKey ?? process.env.NVIDIA_API_KEY!,
+            baseUrl: baseUrl ?? NVIDIA_BASE_URL,
+          })
         : undefined;
     case "google":
       return apiKey || process.env.GOOGLE_API_KEY
@@ -84,7 +97,7 @@ export function createRegistry(
   config: Partial<Record<ProviderName, string>> = {},
 ): ProviderRegistry {
   const providers = new Map<ProviderName, LLMProvider>();
-  for (const name of ["openai", "anthropic", "google", "deepseek"] as ProviderName[]) {
+  for (const name of ["openai", "anthropic", "google", "deepseek", "nvidia"] as ProviderName[]) {
     const p = createProvider(name, config[name]);
     if (p) providers.set(name, p);
   }

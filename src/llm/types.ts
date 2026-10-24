@@ -1,4 +1,4 @@
-export type ProviderName = "openai" | "anthropic" | "google" | "deepseek";
+export type ProviderName = "openai" | "anthropic" | "google" | "deepseek" | "nvidia";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";

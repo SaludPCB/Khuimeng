@@ -1,21 +1,25 @@
 # Khuimeng 座席映射與報告管道設定
-# 將每個角色 (agent) 指派到不同的 LLM 供應商與模型
-# 跨供應商異質性為品質防線：三角色各綁不同供應商，避免單一模型系統性盲點
+# 一把 NVIDIA key（NVIDIA_API_KEY）通吃 NIM 上架的所有模型：
+# 三席位各綁不同模型家族，保留跨模型異質性防線
+#
+# 模型 ID 以 https://build.nvidia.com 目錄為準；若 real 模式回 404，
+# 僅需按目錄修正下方三行 model 值（deepseek-r1 會輸出思考過程，
+# 若導致 frontmatter 不在檔頭被退回，可換 mistralai 或 nemotron 系列）。
 
 seats:
   coder:
-    provider: openai
-    model: gpt-4o
+    provider: nvidia
+    model: meta/llama-3.3-70b-instruct
     reasoning_mode: mechanistic
     system_prompt_file: agents/coder.md
   viewer:
-    provider: anthropic
-    model: claude-3-5-sonnet-latest
+    provider: nvidia
+    model: qwen/qwen2.5-72b-instruct
     reasoning_mode: analytical
     system_prompt_file: agents/viewer.md
   tester:
-    provider: deepseek
-    model: deepseek-chat
+    provider: nvidia
+    model: deepseek-ai/deepseek-r1
     reasoning_mode: adversarial
     system_prompt_file: agents/tester.md
 
@@ -25,5 +29,11 @@ pipeline:
   consensus_threshold: null   # 管道模式不需要共識判定
 
 fallback:
-  provider: anthropic
-  model: claude-3-5-sonnet-latest
+  provider: nvidia
+  model: meta/llama-3.3-70b-instruct
+
+# 換廠商範例（任何 OpenAI 相容端點，加 base_url 即可）：
+#   coder:
+#     provider: nvidia          # 或 openai
+#     model: gpt-4o-mini
+#     base_url: https://api.openai.com/v1
