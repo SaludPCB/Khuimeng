@@ -2,24 +2,27 @@
 # 一把 NVIDIA key（NVIDIA_API_KEY）通吃 NIM 上架的所有模型：
 # 三席位各綁不同模型家族，保留跨模型異質性防線
 #
-# 模型 ID 以 https://build.nvidia.com 目錄為準；若 real 模式回 404，
-# 僅需按目錄修正下方三行 model 值（deepseek-r1 會輸出思考過程，
-# 若導致 frontmatter 不在檔頭被退回，可換 mistralai 或 nemotron 系列）。
+# 模型 ID 已對照 https://build.nvidia.com 目錄實測（2026-10-24，GET /v1/models 共 85 個）。
+# 目錄實測備註：多數模型「有列未部署」（秒回空值，如 kimi/yi/dbrx/codellama/jamba/gemma-3）；
+# 思考型模型（glm-5.3(-flash)、step-5、nemotron-lightning）會把 max_tokens 燒在思考上導致正文為空。
+# 實際能完成代碼任務的僅 deepseek-v4.1-flash 與 minimax-m3.1-flash——寫手(DeepSeek)與
+# 審查/驗收(MiniMax)跨家族防線保住；viewer/tester 暫用同模型，目錄補貨後改此二行即可恢復三家族。
+# 注意：MiniMax 為思考型，大輸出任務（如整份 HTML）會把 max_tokens 燒在思考上——只派報告型工作。
 
 seats:
   coder:
     provider: nvidia
-    model: meta/llama-3.3-70b-instruct
+    model: deepseek-ai/deepseek-v4.1-flash  # DeepSeek：寫手——思考開銷極小（實測 ~219 字元），正文完整
     reasoning_mode: mechanistic
     system_prompt_file: agents/coder.md
   viewer:
     provider: nvidia
-    model: qwen/qwen2.5-72b-instruct
+    model: minimaxai/minimax-m3.1-flash     # MiniMax：審查（報告型輸出小，思考額度夠用）
     reasoning_mode: analytical
     system_prompt_file: agents/viewer.md
   tester:
     provider: nvidia
-    model: deepseek-ai/deepseek-r1
+    model: minimaxai/minimax-m3.1-flash     # MiniMax：驗收（與 coder 跨家族；與 viewer 同模型，目錄限制見下註）
     reasoning_mode: adversarial
     system_prompt_file: agents/tester.md
 
@@ -30,8 +33,7 @@ pipeline:
 
 fallback:
   provider: nvidia
-  model: meta/llama-3.3-70b-instruct
-
+  model: deepseek-ai/deepseek-v4.1-flash
 # 換廠商範例（任何 OpenAI 相容端點，加 base_url 即可）：
 #   coder:
 #     provider: nvidia          # 或 openai

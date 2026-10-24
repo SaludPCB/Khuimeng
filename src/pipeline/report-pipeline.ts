@@ -72,6 +72,41 @@ export function parseReport(md: string): { fm: ReportFrontmatter; body: string }
   return { fm: v.fm, body: m[2] ?? "" };
 }
 
+/**
+ * LLM 輸出正規化：真實模型常見雜訊——整體被 ``` 圍欄包裹、--- 之前有問候語或說明文字。
+ * 依次嘗試（原文／去圍欄／自第一個 --- 行起），第一個能通過完整校驗者勝出；全敗回 null（fail-closed）。
+ */
+export function normalizeReport(raw: string): string | null {
+  const candidates: string[] = [];
+  const push = (s: string) => {
+    const t = s.trim();
+    if (t && !candidates.includes(t)) candidates.push(t);
+  };
+  push(raw);
+  const stripped = raw
+    .trim()
+    .replace(/^```[a-zA-Z]*\s*\r?\n?/, "")
+    .replace(/\r?\n?```\s*$/, "");
+  push(stripped);
+  for (const base of [raw, stripped]) {
+    const lines = base.split(/\r?\n/);
+    const idx = lines.findIndex((l) => l.trim() === "---");
+    if (idx > 0) {
+      push(lines.slice(idx).join("\n").replace(/\r?\n?```\s*$/, ""));
+    }
+  }
+  for (const c of candidates) {
+    if (!c.startsWith("---")) continue;
+    try {
+      parseReport(c);
+      return c;
+    } catch {
+      // 試下一個候選
+    }
+  }
+  return null;
+}
+
 export type RouteAction =
   | "to_viewer"
   | "to_tester"
@@ -273,16 +308,28 @@ export class ReportPipeline {
     coderFile: string,
     viewerFile: string,
   ): Promise<{ fm: ReportFrontmatter; body: string; file: string }> {
-    const md = this.mock
+    const raw = this.mock
       ? mockReport(role, iteration, task, coderFile, viewerFile)
       : await this.agent(role).speak([
           {
             role: "user",
             content:
-              `${upstream}\n\n請依你的角色定義輸出 Markdown 報告：檔頭須有 --- 圍欄 YAML frontmatter（role: ${role}, iteration: ${iteration}, depends_on, target_files, verdict），verdict 須落在你的值域 [${VERDICT_DOMAINS[role].join("/")}]。`,
+              `${upstream}\n\n請依你的角色定義輸出 Markdown 報告。輸出格式（嚴格遵守）：\n` +
+              `第 1 行必須是 ---（之前不得有任何字元、問候、說明或程式碼圍欄）；\n` +
+              `接著 YAML frontmatter 五欄：role: ${role}、iteration: ${iteration}、depends_on: []、target_files: []、verdict: <值>；\n` +
+              `再一行 ---，之後才是報告本文。verdict 須落在你的值域 [${VERDICT_DOMAINS[role].join("/")}]。`,
           },
         ]);
-    const { fm, body } = parseReport(md);
+    const md = this.mock ? raw : (normalizeReport(raw) ?? raw);
+    let parsed: { fm: ReportFrontmatter; body: string };
+    try {
+      parsed = parseReport(md);
+    } catch (e) {
+      throw new Error(
+        `${(e as Error).message}（模型回覆開頭：${JSON.stringify(raw.slice(0, 120))}）`,
+      );
+    }
+    const { fm, body } = parsed;
     if (fm.role !== role) {
       throw new Error(`報告 role=${fm.role} 與預期 ${role} 不符`);
     }

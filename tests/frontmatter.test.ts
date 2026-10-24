@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReport, validateFrontmatter } from "../src/pipeline/report-pipeline";
+import { normalizeReport, parseReport, validateFrontmatter } from "../src/pipeline/report-pipeline";
 
 describe("validateFrontmatter：五欄校驗與值域鎖死", () => {
   const valid = {
@@ -86,5 +86,43 @@ verdict: approve
 ---
 `;
     expect(() => parseReport(md)).toThrow("值域");
+  });
+});
+
+describe("normalizeReport：LLM 輸出雜訊正規化", () => {
+  const VALID = `---
+role: coder
+iteration: 1
+depends_on: []
+target_files: []
+verdict: na
+---
+
+# 報告
+本文`;
+
+  it("乾淨輸出原樣通過", () => {
+    expect(normalizeReport(VALID)).toBe(VALID);
+  });
+
+  it("整體被 ```markdown 圍欄包裹 → 剝除", () => {
+    expect(normalizeReport("```markdown\n" + VALID + "\n```")).toBe(VALID);
+  });
+
+  it("--- 之前有問候語/說明 → 從 --- 起切", () => {
+    expect(normalizeReport("好的，以下是報告：\n\n" + VALID)).toBe(VALID);
+  });
+
+  it("圍欄＋前置雜言同時存在 → 照樣救回", () => {
+    expect(normalizeReport("```markdown\n來了！\n" + VALID + "\n```")).toBe(VALID);
+  });
+
+  it("前導空白與結尾圍欄 → 修剪", () => {
+    expect(normalizeReport("\n\n" + VALID + "\n")).toBe(VALID);
+  });
+
+  it("完全沒有合法 frontmatter → null（fail-closed）", () => {
+    expect(normalizeReport("我覺得這個任務不錯")).toBeNull();
+    expect(normalizeReport("```python\nprint(1)\n```")).toBeNull();
   });
 });

@@ -20,10 +20,10 @@ describe("loadSeats：真實 seats.yaml 消費", () => {
       expect(s.seats[role]?.system_prompt_file).toBe(`agents/${role}.md`);
     }
     const models = ["coder", "viewer", "tester"].map((r) => s.seats[r]!.model);
-    expect(new Set(models).size).toBe(3);
-    expect(models[0]).toContain("llama");
-    expect(models[1]).toContain("qwen");
-    expect(models[2]).toContain("deepseek");
+    // 目錄實測（2026-10-24）：寫手 DeepSeek（思考開銷小）／審查驗收 MiniMax；寫手與審查跨家族
+    expect(models[0]).toContain("deepseek");
+    expect(models[1]).toContain("minimax");
+    expect(models[2]).toContain("minimax");
     expect(s.fallback.provider).toBe("nvidia");
   });
 

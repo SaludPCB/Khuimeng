@@ -13,6 +13,7 @@ export {
   route,
   validateFrontmatter,
   parseReport,
+  normalizeReport,
   ROLES,
   VERDICT_DOMAINS,
 } from "./pipeline/report-pipeline";

@@ -37,6 +37,9 @@ export class BaseAgent {
       model: this.seat.model,
       messages,
       temperature: 0.7,
+      // 報告型輸出量大；思考型模型的思考也計入額度（實測複雜任務思考可達 ~49k 字元），
+      // 給足 32000 避免正文被擠掉（NIM 實測兩模型皆接受）
+      maxTokens: 32000,
     });
     return res.content;
   }
