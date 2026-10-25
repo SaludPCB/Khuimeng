@@ -47,6 +47,8 @@ npm start -- --mock "你想要完成的任務"
 export NVIDIA_API_KEY=nvapi-...
 npm start -- "你想要完成的任務"
 
+# 或:cp .env.example .env,把 key 填進 .env(自動載入,已 gitignore)
+
 # 測試
 npm test
 ```

@@ -37,6 +37,8 @@ npm start -- --mock "your task"
 export NVIDIA_API_KEY=nvapi-...
 npm start -- "your task"
 
+# Or: cp .env.example .env, put keys in .env (auto-loaded, gitignored)
+
 npm test
 ```
 

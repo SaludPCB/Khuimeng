@@ -6,6 +6,10 @@ import { loadSeats } from "../src/agent/seat-loader";
 import { ReportPipeline, ROLES, type PipelineRole } from "../src/pipeline/report-pipeline";
 import { runWatcher } from "../src/pipeline/watcher";
 import { getLang, parseLang, setLang, t } from "../src/i18n";
+import { loadEnvIfPresent } from "../src/dotenv-lite";
+
+// 專案 .env 自動載入（已 export 的環境變數優先；無檔則安靜跳過）
+loadEnvIfPresent(resolve(import.meta.dirname, "..", ".env"));
 import {
   createSandbox,
   isGitRepo,
