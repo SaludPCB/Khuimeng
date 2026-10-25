@@ -88,6 +88,8 @@ const ZH = {
     "  /sessions          列已存 sessions",
     "  /resume <名稱>      續跑舊 session",
     "  /rename <名稱>      改名目前 session",
+    "  /undo [N]          倒退 N 輪提問（收回重打）",
+    "  /retry             重送最後一句提問",
     "  /clear             清空對話",
     "  /exit              離開",
   ].join("\n"),
@@ -120,6 +122,11 @@ const ZH = {
   sessionNameInvalid: "名稱須為 1-32 字（中英文、數字、連字號）",
   sessionCurrent: "目前 session：{name}（自動存檔；/rename 改名、/resume 續跑別的）",
   askUsage: "用法：/ask coder|viewer|tester <問題>（角色可簡寫 cai/vai/tai；直接打字＝問 Coder）",
+  undoUsage: "用法：/undo [N]（預設 1；倒退 N 輪提問與回覆，之後重新輸入）",
+  undoDone: "已倒退 {n} 輪——重新輸入即可（畫面舊訊息僅供參考）",
+  undoNothing: "沒有可倒退的提問",
+  retryNoMessage: "沒有可重送的最後提問",
+  retryResend: "重送最後提問…",
   mockRoleReply:
     "（mock 模式）{role} 收到：「{text}」\n這是模擬回覆——real 模式下為 {role} 的真實回應。",
   toolSpec:
@@ -246,6 +253,8 @@ const EN: Record<MsgKey, string> = {
     "  /sessions           List saved sessions",
     "  /resume <name>      Resume a saved session",
     "  /rename <name>      Rename the current session",
+    "  /undo [N]          Rewind N question rounds (retype)",
+    "  /retry             Resend the last question",
     "  /clear              Clear conversation",
     "  /exit               Quit",
   ].join("\n"),
@@ -279,6 +288,11 @@ const EN: Record<MsgKey, string> = {
   sessionCurrent:
     "Current session: {name} (auto-saved; /rename to rename, /resume to switch)",
   askUsage: "Usage: /ask coder|viewer|tester <question> (aliases cai/vai/tai; plain text = ask Coder)",
+  undoUsage: "Usage: /undo [N] (default 1; drop the last N Q&A rounds, then retype)",
+  undoDone: "Rewound {n} round(s) — type again (older on-screen messages are for reference only)",
+  undoNothing: "Nothing to undo",
+  retryNoMessage: "No last question to retry",
+  retryResend: "Resending last question…",
   mockRoleReply:
     "(mock mode) {role} received: \"{text}\"\nSimulated reply — real {role} response in real mode.",
   toolSpec:

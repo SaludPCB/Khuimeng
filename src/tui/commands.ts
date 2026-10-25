@@ -50,6 +50,8 @@ export type SpeakerRole = "user" | "coder" | "viewer" | "tester";
 export interface ChatTurn {
   role: SpeakerRole;
   content: string;
+  /** 這句提問當時問誰（retry 重送用；舊 session 未存則視為 coder） */
+  to?: PipelineRole;
 }
 
 function speakerLabel(role: SpeakerRole): string {
@@ -87,6 +89,8 @@ export type Command =
   | { type: "sessions" }
   | { type: "resume"; name: string }
   | { type: "mode"; mode: string }
+  | { type: "undo"; n?: number }
+  | { type: "retry" }
   | { type: "worktree"; args: string[] }
   | { type: "rollback"; n?: number }
   | { type: "rename"; name: string }
@@ -128,6 +132,12 @@ export function parseCommand(input: string): Command {
         baseUrl: base.join(" ") || undefined,
       };
     }
+    case "/undo": {
+      const n = Number(arg);
+      return { type: "undo", n: arg && Number.isInteger(n) && n > 0 ? n : undefined };
+    }
+    case "/retry":
+      return { type: "retry" };
     case "/mode":
       return { type: "mode", mode: arg };
     case "/worktree":
@@ -375,7 +385,7 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
 // ── 對話（Coder） ─────────────────────────────────────────────
 
 async function chatWithRole(ctx: TuiContext, role: PipelineRole, text: string): Promise<void> {
-  ctx.chat.push({ role: "user", content: text });
+  ctx.chat.push({ role: "user", content: text, to: role });
   say(ctx, "user", text);
   ctx.busy(role);
   const signal = ctx.beginRun?.();
@@ -515,6 +525,64 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
           env: PROVIDER_ENV[cmd.provider] ?? "",
         }),
       );
+      return;
+    }
+    case "undo": {
+      const n = cmd.n ?? 1;
+      let removed = 0;
+      while (ctx.chat.length > 0 && removed < n) {
+        const turn = ctx.chat.pop();
+        if (turn?.role === "user") removed += 1;
+      }
+      if (removed === 0) {
+        say(ctx, "error", t("undoNothing"));
+        return;
+      }
+      // 畫面同步：從尾端移除對應訊息（連續的對話類；遇到系統/管道類訊息即停）
+      while (ctx.messages.length > 0) {
+        const last = ctx.messages[ctx.messages.length - 1];
+        if (
+          last &&
+          last.kind !== "user" &&
+          last.kind !== "coder" &&
+          last.kind !== "viewer" &&
+          last.kind !== "tester"
+        ) {
+          break;
+        }
+        ctx.messages.pop();
+        if (last?.kind === "user") break;
+      }
+      say(ctx, "system", t("undoDone", { n: removed }));
+      return;
+    }
+    case "retry": {
+      // 去掉尾端回覆，取出最後一句提問（含收件人）
+      while (ctx.chat.length > 0 && ctx.chat[ctx.chat.length - 1]?.role !== "user") {
+        ctx.chat.pop();
+      }
+      const lastUser = ctx.chat.pop();
+      if (!lastUser) {
+        say(ctx, "error", t("retryNoMessage"));
+        return;
+      }
+      // 畫面同步：移除到該 [你] 訊息（含）；遇到非對話類訊息即停（舊畫面保留）
+      while (ctx.messages.length > 0) {
+        const last = ctx.messages[ctx.messages.length - 1];
+        if (
+          last &&
+          last.kind !== "user" &&
+          last.kind !== "coder" &&
+          last.kind !== "viewer" &&
+          last.kind !== "tester"
+        ) {
+          break;
+        }
+        ctx.messages.pop();
+        if (last?.kind === "user") break;
+      }
+      say(ctx, "system", t("retryResend"));
+      await chatWithRole(ctx, lastUser.to ?? "coder", lastUser.content);
       return;
     }
     case "mode": {
