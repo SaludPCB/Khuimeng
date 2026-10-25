@@ -218,6 +218,15 @@ export function invalidateAgentCache(): void {
   agentCache.clear();
 }
 
+/** 角色名解析：全名或簡寫（cai/vai/tai，大小寫不拘）→ PipelineRole；非法回 null */
+export function normalizeRole(input: string): PipelineRole | null {
+  const v = input.trim().toLowerCase();
+  if (v === "coder" || v === "cai") return "coder";
+  if (v === "viewer" || v === "vai") return "viewer";
+  if (v === "tester" || v === "tai") return "tester";
+  return null;
+}
+
 /** 供應商對應的環境變數（/provider 提示用） */
 export const PROVIDER_ENV: Record<string, string> = {
   nvidia: "NVIDIA_API_KEY",
@@ -431,11 +440,12 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
       await chatWithRole(ctx, "coder", cmd.text);
       return;
     case "ask": {
-      if (!ROLES.includes(cmd.role as PipelineRole) || !cmd.text.trim()) {
+      const askRole = normalizeRole(cmd.role);
+      if (!askRole || !cmd.text.trim()) {
         say(ctx, "error", t("askUsage"));
         return;
       }
-      await chatWithRole(ctx, cmd.role as PipelineRole, cmd.text);
+      await chatWithRole(ctx, askRole, cmd.text);
       return;
     }
     case "help":
@@ -449,10 +459,12 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
       await runTask(ctx, cmd.text);
       return;
     case "model": {
-      if (!ROLES.includes(cmd.role as PipelineRole)) {
+      const modelRole = normalizeRole(cmd.role);
+      if (!modelRole) {
         say(ctx, "error", t("modelRoleInvalid"));
         return;
       }
+      cmd.role = modelRole;
       if (!cmd.model) {
         say(ctx, "error", t("modelNeedId"));
         return;
@@ -463,10 +475,12 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
       return;
     }
     case "provider": {
-      if (!ROLES.includes(cmd.role as PipelineRole) || !cmd.provider) {
+      const providerRole = normalizeRole(cmd.role);
+      if (!providerRole || !cmd.provider) {
         say(ctx, "error", t("providerUsage"));
         return;
       }
+      cmd.role = providerRole;
       if (!PROVIDER_ENV[cmd.provider]) {
         say(ctx, "error", t("providerInvalid"));
         return;

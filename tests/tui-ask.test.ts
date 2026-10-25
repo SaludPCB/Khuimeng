@@ -110,3 +110,30 @@ describe("executeCommand：三方會診（mock）", () => {
     expect(ctx.messages.at(-1)?.kind).toBe("error");
   });
 });
+
+describe("角色簡寫（cai/vai/tai）", () => {
+  it("normalizeRole：全名與簡寫、大小寫、非法值", async () => {
+    const { normalizeRole } = await import("../src/tui/commands");
+    expect(normalizeRole("coder")).toBe("coder");
+    expect(normalizeRole("cai")).toBe("coder");
+    expect(normalizeRole("CAI")).toBe("coder");
+    expect(normalizeRole("vai")).toBe("viewer");
+    expect(normalizeRole("tai")).toBe("tester");
+    expect(normalizeRole("boss")).toBeNull();
+    expect(normalizeRole("")).toBeNull();
+  });
+
+  it("/ask cai …：簡寫照樣路由到 coder", async () => {
+    const ctx = makeCtx();
+    await executeCommand(ctx, "/ask cai 你好");
+    expect(ctx.messages.at(-1)?.kind).toBe("coder");
+  });
+
+  it("/ask vai …：簡寫路由到 viewer；/model tai 生效", async () => {
+    const ctx = makeCtx();
+    await executeCommand(ctx, "/ask vai 檢查一下");
+    expect(ctx.messages.at(-1)?.kind).toBe("viewer");
+    await executeCommand(ctx, "/model tai z-ai/glm-5.3-flash");
+    expect(ctx.seats.seats.tester?.model).toBe("z-ai/glm-5.3-flash");
+  });
+});

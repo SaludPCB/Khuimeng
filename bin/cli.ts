@@ -235,7 +235,9 @@ function runWatchCommand(argv: string[]): number {
       return 2;
     }
   }
-  if (!ROLES.includes(role as PipelineRole)) {
+  const normRole =
+    role === "cai" ? "coder" : role === "vai" ? "viewer" : role === "tai" ? "tester" : role;
+  if (!ROLES.includes(normRole as PipelineRole)) {
     console.error(
       t("errPrefix", {
         msg: t("watchRoleInvalid", { role: role || t("notProvided") }),
@@ -243,7 +245,7 @@ function runWatchCommand(argv: string[]): number {
     );
     return 2;
   }
-  runWatcher(role as PipelineRole, resolve(reportsDir), {
+  runWatcher(normRole as PipelineRole, resolve(reportsDir), {
     once,
     match,
     write: (panel) => {

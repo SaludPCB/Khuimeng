@@ -118,7 +118,7 @@ const ZH = {
   sessionRenamed: "session 已改名為「{name}」",
   sessionNameInvalid: "名稱須為 1-32 字（中英文、數字、連字號）",
   sessionCurrent: "目前 session：{name}（自動存檔；/rename 改名、/resume 續跑別的）",
-  askUsage: "用法：/ask coder|viewer|tester <問題>（直接打字＝問 Coder）",
+  askUsage: "用法：/ask coder|viewer|tester <問題>（角色可簡寫 cai/vai/tai；直接打字＝問 Coder）",
   mockRoleReply:
     "（mock 模式）{role} 收到：「{text}」\n這是模擬回覆——real 模式下為 {role} 的真實回應。",
   toolSpec:
@@ -275,7 +275,7 @@ const EN: Record<MsgKey, string> = {
   sessionNameInvalid: "Name must be 1-32 chars (letters incl. CJK, digits, hyphen)",
   sessionCurrent:
     "Current session: {name} (auto-saved; /rename to rename, /resume to switch)",
-  askUsage: "Usage: /ask coder|viewer|tester <question> (plain text = ask Coder)",
+  askUsage: "Usage: /ask coder|viewer|tester <question> (aliases cai/vai/tai; plain text = ask Coder)",
   mockRoleReply:
     "(mock mode) {role} received: \"{text}\"\nSimulated reply — real {role} response in real mode.",
   toolSpec:
