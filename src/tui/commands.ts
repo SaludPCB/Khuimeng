@@ -16,6 +16,13 @@ import {
 } from "../pipeline/report-pipeline";
 import { roleReports } from "../pipeline/watcher";
 import { getLang, resolveRoleFile, t } from "../i18n";
+import {
+  isValidSessionName,
+  listSessions,
+  loadSession,
+  renameSessionFile,
+  saveSession,
+} from "./sessions";
 
 // ── 訊息模型 ──────────────────────────────────────────────────
 
@@ -42,6 +49,10 @@ export type Command =
   | { type: "tester" }
   | { type: "task"; text: string }
   | { type: "model"; role: string; model: string }
+  | { type: "provider"; role: string; provider: string; baseUrl?: string }
+  | { type: "sessions" }
+  | { type: "resume"; name: string }
+  | { type: "rename"; name: string }
   | { type: "seats" }
   | { type: "reports" }
   | { type: "clear" }
@@ -67,6 +78,21 @@ export function parseCommand(input: string): Command {
       const [role, model] = rest;
       return { type: "model", role: role ?? "", model: model ?? "" };
     }
+    case "/provider": {
+      const [role, provider, ...base] = rest;
+      return {
+        type: "provider",
+        role: role ?? "",
+        provider: provider ?? "",
+        baseUrl: base.join(" ") || undefined,
+      };
+    }
+    case "/sessions":
+      return { type: "sessions" };
+    case "/resume":
+      return { type: "resume", name: arg };
+    case "/rename":
+      return { type: "rename", name: arg };
     case "/seats":
       return { type: "seats" };
     case "/reports":
@@ -91,6 +117,9 @@ export interface TuiContext {
   registry?: ProviderRegistry;
   agentsDir: string;
   reportsDir: string;
+  sessionsDir: string;
+  /** 目前 session 名（自動存檔於 sessionsDir/<name>.json） */
+  session: { name: string };
   messages: TuiMessage[];
   /** 對話歷史（user/coder），供 Coder 上下文與 viewer/tester 審查來源 */
   chat: ChatTurn[];
@@ -134,6 +163,15 @@ function buildAgent(ctx: TuiContext, role: PipelineRole): BaseAgent | null {
 export function invalidateAgentCache(): void {
   agentCache.clear();
 }
+
+/** 供應商對應的環境變數（/provider 提示用） */
+export const PROVIDER_ENV: Record<string, string> = {
+  nvidia: "NVIDIA_API_KEY",
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+};
 
 // ── 報告徵求（單棒觸發：viewer／tester） ──────────────────────
 
@@ -357,6 +395,82 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
       (ctx.seats.seats[cmd.role] as SeatConfig).model = cmd.model;
       invalidateAgentCache();
       say(ctx, "system", t("modelSwitched", { role: cmd.role, model: cmd.model }));
+      return;
+    }
+    case "provider": {
+      if (!ROLES.includes(cmd.role as PipelineRole) || !cmd.provider) {
+        say(ctx, "error", t("providerUsage"));
+        return;
+      }
+      if (!PROVIDER_ENV[cmd.provider]) {
+        say(ctx, "error", t("providerInvalid"));
+        return;
+      }
+      const seat = ctx.seats.seats[cmd.role] as SeatConfig;
+      seat.provider = cmd.provider as SeatConfig["provider"];
+      if (cmd.baseUrl) seat.base_url = cmd.baseUrl;
+      invalidateAgentCache();
+      say(
+        ctx,
+        "system",
+        t("providerSwitched", {
+          role: cmd.role,
+          provider: cmd.provider,
+          env: PROVIDER_ENV[cmd.provider] ?? "",
+        }),
+      );
+      return;
+    }
+    case "sessions": {
+      const list = listSessions(ctx.sessionsDir).slice(0, 10);
+      if (list.length === 0) {
+        say(ctx, "system", t("sessionsNone"));
+        return;
+      }
+      say(
+        ctx,
+        "system",
+        `${t("sessionsTitle")}\n${list
+          .map((x) =>
+            t("sessionLine", {
+              name: x.name,
+              turns: x.turns,
+              time: x.updatedAt.replace("T", " ").slice(0, 19),
+            }),
+          )
+          .join("\n")}`,
+      );
+      return;
+    }
+    case "resume": {
+      const name = cmd.name.trim();
+      if (!name || !isValidSessionName(name)) {
+        say(ctx, "error", t("sessionNameInvalid"));
+        return;
+      }
+      const data = loadSession(ctx.sessionsDir, name);
+      if (!data) {
+        say(ctx, "error", t("sessionNotFound", { name }));
+        return;
+      }
+      ctx.chat.length = 0;
+      ctx.chat.push(...data.chat);
+      ctx.messages.length = 0;
+      ctx.messages.push(...data.messages);
+      ctx.session.name = name;
+      say(ctx, "system", t("sessionResumed", { name, n: Math.floor(data.chat.length / 2) }));
+      return;
+    }
+    case "rename": {
+      const name = cmd.name.trim();
+      if (!name || !isValidSessionName(name)) {
+        say(ctx, "error", t("sessionNameInvalid"));
+        return;
+      }
+      renameSessionFile(ctx.sessionsDir, ctx.session.name, name);
+      ctx.session.name = name;
+      saveSession(ctx);
+      say(ctx, "system", t("sessionRenamed", { name }));
       return;
     }
     case "seats": {

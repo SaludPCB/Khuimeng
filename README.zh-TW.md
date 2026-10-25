@@ -67,6 +67,8 @@ npm start -- tui           # real 模式（設 NVIDIA_API_KEY）
 | `/tester` | 召喚 Tester 驗收當前產出 |
 | `/task "任務"` | 跑全自動管道（雙門檻＋熔斷） |
 | `/model coder 模型ID` | 熱切換席位模型 |
+| `/provider coder openai [base_url]` | 熱切換席位 API 供應商 |
+| `/sessions` `/resume <名>` `/rename <名>` | session 存續（自動存檔、續跑、改名） |
 | `/seats` `/reports` `/clear` `/help` `/exit` | 座位表／報告清單／清空／說明／離開 |
 
 ## 三視窗觀測（watch）

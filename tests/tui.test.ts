@@ -31,6 +31,8 @@ function makeCtx(): TuiContext {
     seats: loadSeats(resolve(root, "configs/seats.yaml")),
     agentsDir: resolve(root, "agents"),
     reportsDir: tmpReports,
+    sessionsDir: resolve(tmpReports, "sessions"),
+    session: { name: "test-session" },
     messages: [],
     chat: [],
     emit: () => {},

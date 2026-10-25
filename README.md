@@ -54,6 +54,8 @@ npm start -- tui           # real mode
 | `/tester` | Summon Tester to accept the current output |
 | `/task "..."` | Run the full automated pipeline (dual gate + circuit breaker) |
 | `/model coder <model-id>` | Hot-swap a seat's model |
+| `/provider coder openai [base_url]` | Hot-swap a seat's API provider |
+| `/sessions` `/resume <name>` `/rename <name>` | Sessions (auto-saved, resume, rename) |
 | `/seats` `/reports` `/clear` `/help` `/exit` | seat map / report list / clear / help / quit |
 
 ## Three-window observation

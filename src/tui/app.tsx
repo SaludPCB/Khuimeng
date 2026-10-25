@@ -9,6 +9,7 @@ import {
   type TuiMessage,
 } from "./commands";
 import { t } from "../i18n";
+import { newSessionName, saveSession } from "./sessions";
 
 function kindLabel(kind: MessageKind): string {
   switch (kind) {
@@ -56,6 +57,7 @@ export function App(props: {
   registry?: ProviderRegistry;
   agentsDir: string;
   reportsDir: string;
+  sessionsDir: string;
 }) {
   const { exit } = useApp();
   const [messages, setMessages] = useState<TuiMessage[]>([]);
@@ -72,6 +74,8 @@ export function App(props: {
       registry: props.registry,
       agentsDir: props.agentsDir,
       reportsDir: props.reportsDir,
+      sessionsDir: props.sessionsDir,
+      session: { name: newSessionName() },
       messages: [] as TuiMessage[],
       chat: [] as ChatTurn[],
       // Static 依「新陣列參考」渲染新訊息——emit 必須給複本，原地修改它看不到
@@ -82,6 +86,10 @@ export function App(props: {
     ctxRef.current.messages.push({
       kind: "system",
       text: props.mock ? t("tuiWelcomeMock") : t("tuiWelcome"),
+    });
+    ctxRef.current.messages.push({
+      kind: "system",
+      text: t("sessionCurrent", { name: ctxRef.current.session.name }),
     });
   }
   const ctx = ctxRef.current;
@@ -97,7 +105,10 @@ export function App(props: {
       if (!line.trim() || busy) return;
       historyRef.current.push(line);
       historyIdx.current = -1;
-      void executeCommand(ctx, line);
+      void (async () => {
+        await executeCommand(ctx, line);
+        saveSession(ctx);
+      })();
       return;
     }
     if (key.upArrow) {
@@ -188,6 +199,7 @@ export function runTui(opts: {
       registry={registry}
       agentsDir={opts.root + "/agents"}
       reportsDir={opts.reportsDir ?? opts.root + "/reports/pipeline"}
+      sessionsDir={opts.root + "/reports/sessions"}
     />,
   );
 }
