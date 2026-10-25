@@ -21,12 +21,15 @@ export async function withRetry<T>(
         err !== null &&
         ((err as { status?: number }).status === 429 ||
           message.toLowerCase().includes("rate limit"));
-      // 網路暫態錯誤（連線被斷／超時／DNS）也值得重試——長生成特別容易遇到
+      // 網路暫態錯誤（連線被斷／超時／DNS）與伺服器端空回應也值得重試——長生成特別容易遇到
       const isTransientNetwork =
         /fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|network error/i.test(
           message,
         );
-      if (max || (!isRateLimit && !isTransientNetwork)) throw err;
+      // NIM 偶發回 200 但串流全空（無思考無正文）——重試通常即恢復
+      const isEmptyStream =
+        /串流結束但無正文內容|stream ended with no content/i.test(message);
+      if (max || (!isRateLimit && !isTransientNetwork && !isEmptyStream)) throw err;
       const delay =
         baseDelayMs * 2 ** (attempt - 1) + Math.floor(Math.random() * 100);
       await new Promise((r) => setTimeout(r, delay));
