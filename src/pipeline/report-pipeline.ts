@@ -438,12 +438,15 @@ export class ReportPipeline {
       }
       return new ApprovalGate({ mode: "semi", ask: async () => "no" });
     })();
+    // 工具額度：viewer 唯讀審查從簡；coder/tester 要寫要跑給足
+    const toolBudget = role === "viewer" ? 16 : 28;
     return runAgentLoop(agent, {
       initialUser: `${content}\n\n${t("toolSpec")}`,
       file,
       gate,
       signal: this.signal,
       runCwd: this.sandboxInfo.dir,
+      maxSteps: toolBudget,
       onTool: (desc) => this.log(`  🔧 ${desc}`),
     });
   }

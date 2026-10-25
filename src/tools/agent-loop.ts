@@ -118,7 +118,7 @@ export async function runAgentLoop(
   agent: BaseAgent,
   opts: AgentLoopOptions,
 ): Promise<string> {
-  const maxSteps = opts.maxSteps ?? 12;
+  const maxSteps = opts.maxSteps ?? 24;
   const transcript: { role: "user" | "assistant"; content: string }[] = [
     { role: "user", content: opts.initialUser },
   ];
