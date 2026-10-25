@@ -176,6 +176,8 @@ export interface ReportPipelineOptions {
   repoRoot?: string;
   /** 行動權限門：ask|semi|auto；非互動批次建議 auto */
   approval?: { mode: ApprovalMode; ask?: AskFn };
+  /** 中途取消（ESC）——貫通所有 LLM 呼叫 */
+  signal?: AbortSignal;
   log?: (line: string) => void;
 }
 
@@ -192,6 +194,7 @@ export class ReportPipeline {
   private readonly useSandbox: boolean;
   private readonly repoRoot: string;
   private readonly approval?: { mode: ApprovalMode; ask?: AskFn };
+  private readonly signal?: AbortSignal;
   private sandboxInfo?: SandboxInfo;
 
   constructor(opts: ReportPipelineOptions) {
@@ -217,6 +220,7 @@ export class ReportPipeline {
     this.useSandbox = opts.sandbox ?? false;
     this.repoRoot = opts.repoRoot ?? process.cwd();
     this.approval = opts.approval;
+    this.signal = opts.signal;
     this.log = opts.log ?? (() => {});
     if (!this.mock && !this.registry) {
       throw new Error(t("needRegistry"));
@@ -406,7 +410,9 @@ export class ReportPipeline {
       domain: VERDICT_DOMAINS[role].join("/"),
     });
     const content = `${upstream}${sandboxCtx}\n\n${instruction}`;
-    if (!this.sandboxInfo) return agent.speak([{ role: "user", content }]);
+    if (!this.sandboxInfo) {
+      return agent.speak([{ role: "user", content }], this.signal);
+    }
 
     const file = makeFileTools({
       sandboxDir: this.sandboxInfo.dir,
@@ -424,6 +430,7 @@ export class ReportPipeline {
       initialUser: `${content}\n\n${t("toolSpec")}`,
       file,
       gate,
+      signal: this.signal,
       onTool: (desc) => this.log(`  🔧 ${desc}`),
     });
   }

@@ -28,6 +28,12 @@ function kindLabel(kind: MessageKind): string {
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+function cwdLabel(): string {
+  const cwd = process.cwd();
+  const home = process.env.HOME ?? "";
+  return home && cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd;
+}
+
 const KIND_COLORS: Record<MessageKind, string> = {
   user: "cyan",
   coder: "green",
@@ -64,6 +70,7 @@ export function App(props: {
   const [messages, setMessages] = useState<TuiMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [pending, setPending] = useState<{
     detail: string;
     resolve: (a: "yes" | "always" | "no") => void;
@@ -85,6 +92,13 @@ export function App(props: {
       approvalMode: "ask",
       askApproval: (detail) =>
         new Promise((resolve) => setPending({ detail, resolve })),
+      beginRun: () => {
+        abortRef.current = new AbortController();
+        return abortRef.current.signal;
+      },
+      endRun: () => {
+        abortRef.current = null;
+      },
       messages: [] as TuiMessage[],
       chat: [] as ChatTurn[],
       // Static 依「新陣列參考」渲染新訊息——emit 必須給複本，原地修改它看不到
@@ -108,6 +122,18 @@ export function App(props: {
   }, []);
 
   useInput((ch, key) => {
+    if (key.escape) {
+      if (pending) {
+        const p = pending;
+        setPending(null);
+        p.resolve("no");
+      } else if (busy) {
+        abortRef.current?.abort();
+      } else {
+        setInput("");
+      }
+      return;
+    }
     if (pending) {
       const answer: "yes" | "always" | "no" | null =
         ch === "y" ? "yes" : ch === "a" ? "always" : ch === "n" ? "no" : null;
@@ -119,6 +145,10 @@ export function App(props: {
       return;
     }
     if (key.return) {
+      if (input.endsWith("\\") && !busy) {
+        setInput((v) => `${v.slice(0, -1)}\n`);
+        return;
+      }
       const line = input;
       setInput("");
       if (!line.trim() || busy) return;
@@ -193,8 +223,9 @@ export function App(props: {
       ) : null}
       <Box borderStyle="round" flexDirection="column" paddingX={1}>
         <Text dimColor>
-          {props.mock ? "mock" : "real"} · {seatsLine} · {t("statusHints")}
+          📂 {cwdLabel()} · {props.mock ? "mock" : "real"} · {seatsLine}
         </Text>
+        <Text dimColor>{t("statusHints")}</Text>
         <Box>
           <Text bold color="cyan">
             {"❯ "}

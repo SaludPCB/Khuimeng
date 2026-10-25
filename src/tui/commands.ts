@@ -174,6 +174,9 @@ export interface TuiContext {
   approvalMode: ApprovalMode;
   /** 互動詢問（App 注入；ask/semi 模式顯示 y/a/n 確認） */
   askApproval?: (detail: string) => Promise<"yes" | "always" | "no">;
+  /** 本輪執行的取消控制器（App 注入；ESC 觸發 abort） */
+  beginRun?: () => AbortSignal;
+  endRun?: () => void;
   messages: TuiMessage[];
   /** 對話歷史（user/coder），供 Coder 上下文與 viewer/tester 審查來源 */
   chat: ChatTurn[];
@@ -182,6 +185,10 @@ export interface TuiContext {
   /** 顯示忙碌狀態（角色名或 null） */
   busy(role: string | null): void;
   exit(): void;
+}
+
+function isAbort(e: unknown): boolean {
+  return (e as { name?: string })?.name === "AbortError";
 }
 
 function say(ctx: TuiContext, kind: MessageKind, text: string, meta?: string): void {
@@ -321,6 +328,7 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
   }
   const iteration = nextIteration(ctx, role);
   ctx.busy(role);
+  const signal = ctx.beginRun?.();
   try {
     let fm: ReportFrontmatter;
     let body: string;
@@ -334,12 +342,15 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
         say(ctx, "error", t("seatUnavailable", { role }));
         return;
       }
-      const raw = await agent.speak([
-        {
-          role: "user",
-          content: `以下是任務對話紀錄（審查對象＝Coder 的最新產出）：\n\n${digest}\n\n${reportInstruction(role, iteration)}`,
-        },
-      ]);
+      const raw = await agent.speak(
+        [
+          {
+            role: "user",
+            content: `以下是任務對話紀錄（審查對象＝Coder 的最新產出）：\n\n${digest}\n\n${reportInstruction(role, iteration)}`,
+          },
+        ],
+        signal,
+      );
       const md = normalizeReport(raw) ?? raw;
       ({ fm, body } = parseReport(md));
       if (fm.role !== role) {
@@ -354,8 +365,9 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
       t("metaVerdict", { verdict: fm.verdict, n: fm.iteration, file }),
     );
   } catch (e) {
-    say(ctx, "error", t("reportFail", { role, msg: (e as Error).message }));
+    say(ctx, "error", isAbort(e) ? t("aborted") : t("reportFail", { role, msg: (e as Error).message }));
   } finally {
+    ctx.endRun?.();
     ctx.busy(null);
   }
 }
@@ -366,6 +378,7 @@ async function chatWithRole(ctx: TuiContext, role: PipelineRole, text: string): 
   ctx.chat.push({ role: "user", content: text });
   say(ctx, "user", text);
   ctx.busy(role);
+  const signal = ctx.beginRun?.();
   try {
     let reply: string;
     if (ctx.mock) {
@@ -376,13 +389,14 @@ async function chatWithRole(ctx: TuiContext, role: PipelineRole, text: string): 
         say(ctx, "error", t("seatUnavailable", { role }));
         return;
       }
-      reply = await agent.speak(buildTranscriptFor(ctx.chat, role));
+      reply = await agent.speak(buildTranscriptFor(ctx.chat, role), signal);
     }
     ctx.chat.push({ role, content: reply });
     say(ctx, role, reply);
   } catch (e) {
-    say(ctx, "error", t("coderFail", { msg: (e as Error).message }));
+    say(ctx, "error", isAbort(e) ? t("aborted") : t("coderFail", { msg: (e as Error).message }));
   } finally {
+    ctx.endRun?.();
     ctx.busy(null);
   }
 }
@@ -397,6 +411,7 @@ async function runTask(ctx: TuiContext, taskInput: string): Promise<void> {
     return;
   }
   ctx.busy("task");
+  const signal = ctx.beginRun?.();
   say(ctx, "task", t("taskStart", { task }));
   try {
     const pipeline = new ReportPipeline({
@@ -416,6 +431,7 @@ async function runTask(ctx: TuiContext, taskInput: string): Promise<void> {
               : undefined,
           }
         : undefined,
+      signal,
       log: (line) => say(ctx, "task", line),
     });
     const result = await pipeline.run(task);
@@ -425,8 +441,9 @@ async function runTask(ctx: TuiContext, taskInput: string): Promise<void> {
       result.status === "delivered" ? t("taskDelivered") : t("taskCircuit"),
     );
   } catch (e) {
-    say(ctx, "error", t("pipelineFail", { msg: (e as Error).message }));
+    say(ctx, "error", isAbort(e) ? t("aborted") : t("pipelineFail", { msg: (e as Error).message }));
   } finally {
+    ctx.endRun?.();
     ctx.busy(null);
   }
 }

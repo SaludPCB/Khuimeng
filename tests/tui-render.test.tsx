@@ -94,3 +94,29 @@ describe("TUI 畫面渲染（ink-testing-library 模擬打字）", () => {
     t.unmount();
   });
 });
+
+describe("輸入操作：Esc 清行、反斜線換行", () => {
+  it("打字後 Esc 清空輸入框", async () => {
+    const t = mount();
+    await sleep(80);
+    t.stdin.write("hi");
+    await sleep(120);
+    expect(t.lastFrame()).toContain("hi");
+    t.stdin.write("\x1b");
+    await sleep(150);
+    expect(t.lastFrame() ?? "").not.toContain("❯ hi");
+    t.unmount();
+  });
+
+  it("反斜線+Enter 插入換行不送出", async () => {
+    const t = mount();
+    await sleep(80);
+    t.stdin.write("line1\\");
+    await sleep(100);
+    t.stdin.write("\r");
+    await sleep(150);
+    const frame = t.lastFrame() ?? "";
+    expect(frame).not.toContain("[你]"); // 未送出
+    t.unmount();
+  });
+});

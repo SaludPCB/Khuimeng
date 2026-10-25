@@ -10,6 +10,8 @@ export interface LLMRequest {
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  /** 中途取消（ESC）——傳入 fetch AbortSignal */
+  signal?: AbortSignal;
 }
 
 export interface LLMResponse {

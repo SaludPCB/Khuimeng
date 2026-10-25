@@ -37,6 +37,7 @@ export class OpenAICompatProvider implements LLMProvider {
   private async completeStream(req: LLMRequest): Promise<string> {
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
+      signal: req.signal,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",

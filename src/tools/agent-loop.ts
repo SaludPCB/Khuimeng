@@ -29,6 +29,8 @@ export interface AgentLoopOptions {
   maxSteps?: number;
   /** 工具事件旁聽（log 用） */
   onTool?: (desc: string) => void;
+  /** 中途取消（ESC） */
+  signal?: AbortSignal;
 }
 
 /** 解析回覆中的工具區塊（純函式） */
@@ -88,7 +90,7 @@ export async function runAgentLoop(
   let used = 0;
 
   for (;;) {
-    const reply = await agent.speak(transcript);
+    const reply = await agent.speak(transcript, opts.signal);
     const calls = parseToolBlocks(reply);
     if (calls.length === 0) return reply;
     transcript.push({ role: "assistant", content: reply });
