@@ -54,6 +54,8 @@ npm start -- sandbox list|new|diff|merge|prune|rollback   # sandbox management
 
 The tool protocol is plain text (no function-calling dependency — works with any model); a checkpoint is created after each coder round, and `rollback` restores them.
 
+**P2-2 shell tools**: `<<<TOOL run cmd=npm test … TOOL>>>` whitelisted execution (npm test / npm run / npx vitest / node / tsc / read-only git), dangerous patterns (`rm -rf`, `sudo`, pipe-downloads…) auto-denied without asking; 60s timeout + output truncation. Permission matrix: Coder writes & runs, **Tester cannot write but can run tests (verdicts from real logs)**, Viewer neither.
+
 ## Interactive TUI
 
 ```bash

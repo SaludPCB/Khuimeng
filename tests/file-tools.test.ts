@@ -124,9 +124,9 @@ describe("agent-loop（文字工具協定）", () => {
     ].join("\n");
     const calls = parseToolBlocks(reply);
     expect(calls).toEqual([
-      { op: "write_file", path: "cube.html", content: "<!DOCTYPE html>" },
-      { op: "read_file", path: "src/a.ts", content: "" },
-      { op: "list_files", path: ".", content: "" },
+      { op: "write_file", path: "cube.html", cmd: "", content: "<!DOCTYPE html>" },
+      { op: "read_file", path: "src/a.ts", cmd: "", content: "" },
+      { op: "list_files", path: ".", cmd: "", content: "" },
     ]);
   });
 

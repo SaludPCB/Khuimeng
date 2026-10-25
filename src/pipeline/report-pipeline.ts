@@ -418,19 +418,32 @@ export class ReportPipeline {
       sandboxDir: this.sandboxInfo.dir,
       repoRoot: this.repoRoot,
     });
-    const gate =
-      role === "coder"
-        ? new ApprovalGate(this.approval ?? { mode: "auto" })
-        : new ApprovalGate({
-            // 審查/驗收唯讀：寫入一律拒絕（紅線程式化）
-            mode: "semi",
-            ask: async () => "no",
-          });
+    // 權限矩陣（紅線程式化）：
+    //   coder：寫+跑，依 approval 門（批次預設 auto）
+    //   tester：禁寫、可跑測試（跑的門隨 approval）
+    //   viewer：禁寫禁跑（唯讀審查）
+    const base = this.approval;
+    const gate = (() => {
+      if (role === "coder") return new ApprovalGate(base ?? { mode: "auto" });
+      if (role === "tester") {
+        const filterAsk = base?.ask
+          ? async (req: { op: import("../tools/approval").ApprovalRequest["op"]; detail: string }) =>
+              req.op === "write_file" ? ("no" as const) : base.ask!(req)
+          : async () => "no" as const;
+        return new ApprovalGate(
+          base?.mode === "auto"
+            ? { mode: "auto", ask: filterAsk }
+            : { mode: "semi", ask: filterAsk },
+        );
+      }
+      return new ApprovalGate({ mode: "semi", ask: async () => "no" });
+    })();
     return runAgentLoop(agent, {
       initialUser: `${content}\n\n${t("toolSpec")}`,
       file,
       gate,
       signal: this.signal,
+      runCwd: this.sandboxInfo.dir,
       onTool: (desc) => this.log(`  🔧 ${desc}`),
     });
   }

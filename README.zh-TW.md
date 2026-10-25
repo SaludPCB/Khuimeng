@@ -65,6 +65,8 @@ npm start -- sandbox list|new|diff|merge|prune|rollback   # 沙箱管理
 
 工具協定為純文字（不依賴 function-calling，任何模型可用）；每次 Coder 交棒自動建立檢查點，`rollback` 可回退。
 
+**P2-2 shell 手**：`<<<TOOL run cmd=npm test … TOOL>>>` 白名單指令執行（npm test／npm run／npx vitest／node／tsc／git 唯讀查詢），危險樣式（`rm -rf`、`sudo`、管線下載…）連問都不問直接拒；逾時 60 秒＋輸出截斷。權限矩陣：Coder 可寫可跑、**Tester 禁寫可跑測試（用真 log 判定）**、Viewer 禁寫禁跑。
+
 ## 互動式 TUI
 
 像 opencode／Claude Code 的互動介面，核心是三角色治理——跟 Coder 對話，用指令召喚審查與驗收：

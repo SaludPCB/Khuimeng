@@ -8,7 +8,7 @@
 
 export type ApprovalMode = "ask" | "semi" | "auto";
 
-export type ApprovalOp = "write_file" | "read_file" | "list_files";
+export type ApprovalOp = "write_file" | "read_file" | "list_files" | "run_command";
 
 export interface ApprovalRequest {
   op: ApprovalOp;
@@ -24,7 +24,8 @@ export interface ApprovalGateOptions {
   ask?: AskFn;
 }
 
-const WRITE_OPS: ReadonlySet<ApprovalOp> = new Set(["write_file"]);
+/** semi 模式下需要詢問的操作（寫入與指令執行） */
+const WRITE_OPS: ReadonlySet<ApprovalOp> = new Set(["write_file", "run_command"]);
 
 export class ApprovalGate {
   private readonly mode: ApprovalMode;
