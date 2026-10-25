@@ -127,10 +127,11 @@ export function App(props: {
         const p = pending;
         setPending(null);
         p.resolve("no");
+      } else if (input) {
+        // 有輸入→優先清行（避免打字中誤掐生成；要取消請先把行清空）
+        setInput("");
       } else if (busy) {
         abortRef.current?.abort();
-      } else {
-        setInput("");
       }
       return;
     }
@@ -145,6 +146,11 @@ export function App(props: {
       return;
     }
     if (key.return) {
+      if (key.meta && !busy) {
+        // Option/Alt+Enter：插入換行不送出（macOS 終端機送 ESC+CR，Ink 解析為 meta+return）
+        setInput((v) => `${v}\n`);
+        return;
+      }
       if (input.endsWith("\\") && !busy) {
         setInput((v) => `${v.slice(0, -1)}\n`);
         return;
