@@ -17,6 +17,16 @@ import {
 import { roleReports } from "../pipeline/watcher";
 import { getLang, resolveRoleFile, t } from "../i18n";
 import {
+  createSandbox,
+  isGitRepo,
+  listSandboxes,
+  mergeSandbox,
+  pruneSandbox,
+  rollback as sandboxRollback,
+  sandboxDiff,
+} from "../tools/sandbox";
+import type { ApprovalMode } from "../tools/approval";
+import {
   isValidSessionName,
   listSessions,
   loadSession,
@@ -52,6 +62,9 @@ export type Command =
   | { type: "provider"; role: string; provider: string; baseUrl?: string }
   | { type: "sessions" }
   | { type: "resume"; name: string }
+  | { type: "mode"; mode: string }
+  | { type: "worktree"; args: string[] }
+  | { type: "rollback"; n?: number }
   | { type: "rename"; name: string }
   | { type: "seats" }
   | { type: "reports" }
@@ -87,6 +100,14 @@ export function parseCommand(input: string): Command {
         baseUrl: base.join(" ") || undefined,
       };
     }
+    case "/mode":
+      return { type: "mode", mode: arg };
+    case "/worktree":
+      return { type: "worktree", args: rest };
+    case "/rollback": {
+      const n = Number(arg);
+      return { type: "rollback", n: arg && Number.isInteger(n) ? n : undefined };
+    }
     case "/sessions":
       return { type: "sessions" };
     case "/resume":
@@ -120,6 +141,11 @@ export interface TuiContext {
   sessionsDir: string;
   /** 目前 session 名（自動存檔於 sessionsDir/<name>.json） */
   session: { name: string };
+  repoRoot: string;
+  /** 行動權限模式（/task --sandbox 的工具門） */
+  approvalMode: ApprovalMode;
+  /** 互動詢問（App 注入；ask/semi 模式顯示 y/a/n 確認） */
+  askApproval?: (detail: string) => Promise<"yes" | "always" | "no">;
   messages: TuiMessage[];
   /** 對話歷史（user/coder），供 Coder 上下文與 viewer/tester 審查來源 */
   chat: ChatTurn[];
@@ -335,9 +361,11 @@ async function chatWithCoder(ctx: TuiContext, text: string): Promise<void> {
 
 // ── 全自動管道（/task） ────────────────────────────────────────
 
-async function runTask(ctx: TuiContext, task: string): Promise<void> {
-  if (!task.trim()) {
-    say(ctx, "error", '用法：/task "任務描述"');
+async function runTask(ctx: TuiContext, taskInput: string): Promise<void> {
+  const sandbox = taskInput.includes("--sandbox");
+  const task = taskInput.replace(/\s*--sandbox\s*/g, " ").trim();
+  if (!task) {
+    say(ctx, "error", t("taskUsage"));
     return;
   }
   ctx.busy("task");
@@ -350,6 +378,16 @@ async function runTask(ctx: TuiContext, task: string): Promise<void> {
       agentsDir: ctx.agentsDir,
       reportsDir: ctx.reportsDir,
       signature: "tui",
+      sandbox,
+      repoRoot: ctx.repoRoot,
+      approval: sandbox
+        ? {
+            mode: ctx.approvalMode,
+            ask: ctx.askApproval
+              ? async (req) => ctx.askApproval!(req.detail)
+              : undefined,
+          }
+        : undefined,
       log: (line) => say(ctx, "task", line),
     });
     const result = await pipeline.run(task);
@@ -419,6 +457,100 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
           env: PROVIDER_ENV[cmd.provider] ?? "",
         }),
       );
+      return;
+    }
+    case "mode": {
+      if (cmd.mode !== "ask" && cmd.mode !== "semi" && cmd.mode !== "auto") {
+        say(ctx, "error", t("modeUsage"));
+        return;
+      }
+      ctx.approvalMode = cmd.mode;
+      say(ctx, "system", t("modeSwitched", { mode: cmd.mode }));
+      return;
+    }
+    case "worktree": {
+      const [sub, id] = cmd.args;
+      if (!isGitRepo(ctx.repoRoot)) {
+        say(ctx, "error", t("notGitRepo"));
+        return;
+      }
+      try {
+        switch (sub ?? "list") {
+          case "list": {
+            const list = listSandboxes(ctx.repoRoot);
+            if (list.length === 0) {
+              say(ctx, "system", t("worktreeNone"));
+              return;
+            }
+            say(
+              ctx,
+              "system",
+              list
+                .map((sb) =>
+                  t("worktreeLine", {
+                    id: sb.id,
+                    n: sb.checkpoints,
+                    dirty: sb.dirty ? t("worktreeDirty") : t("worktreeClean"),
+                  }),
+                )
+                .join("\n"),
+            );
+            return;
+          }
+          case "new": {
+            const sb = createSandbox(ctx.repoRoot);
+            say(ctx, "system", t("sandboxCreated", { id: sb.id, branch: sb.branch, dir: sb.dir }));
+            return;
+          }
+          case "diff": {
+            if (!id) {
+              say(ctx, "error", t("worktreeUsage"));
+              return;
+            }
+            say(ctx, "system", sandboxDiff(ctx.repoRoot, id));
+            return;
+          }
+          case "merge": {
+            if (!id) {
+              say(ctx, "error", t("worktreeUsage"));
+              return;
+            }
+            mergeSandbox(ctx.repoRoot, id);
+            say(ctx, "system", t("worktreeMerged", { id }));
+            return;
+          }
+          case "prune": {
+            if (!id) {
+              say(ctx, "error", t("worktreeUsage"));
+              return;
+            }
+            pruneSandbox(ctx.repoRoot, id);
+            say(ctx, "system", t("worktreePruned", { id }));
+            return;
+          }
+          default:
+            say(ctx, "error", t("worktreeUsage"));
+            return;
+        }
+      } catch (e) {
+        say(ctx, "error", (e as Error).message);
+        return;
+      }
+    }
+    case "rollback": {
+      const list = listSandboxes(ctx.repoRoot);
+      const newest = list[0];
+      if (!newest) {
+        say(ctx, "error", t("worktreeNone"));
+        return;
+      }
+      const n = cmd.n && cmd.n > 0 ? cmd.n : 1;
+      try {
+        sandboxRollback(ctx.repoRoot, newest.id, n);
+        say(ctx, "system", t("rollbackDone", { id: newest.id, n }));
+      } catch (e) {
+        say(ctx, "error", (e as Error).message);
+      }
       return;
     }
     case "sessions": {

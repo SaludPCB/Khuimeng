@@ -58,11 +58,16 @@ export function App(props: {
   agentsDir: string;
   reportsDir: string;
   sessionsDir: string;
+  repoRoot: string;
 }) {
   const { exit } = useApp();
   const [messages, setMessages] = useState<TuiMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [pending, setPending] = useState<{
+    detail: string;
+    resolve: (a: "yes" | "always" | "no") => void;
+  } | null>(null);
   const historyRef = useRef<string[]>([]);
   const historyIdx = useRef(-1);
 
@@ -76,6 +81,10 @@ export function App(props: {
       reportsDir: props.reportsDir,
       sessionsDir: props.sessionsDir,
       session: { name: newSessionName() },
+      repoRoot: props.repoRoot,
+      approvalMode: "ask",
+      askApproval: (detail) =>
+        new Promise((resolve) => setPending({ detail, resolve })),
       messages: [] as TuiMessage[],
       chat: [] as ChatTurn[],
       // Static 依「新陣列參考」渲染新訊息——emit 必須給複本，原地修改它看不到
@@ -99,6 +108,16 @@ export function App(props: {
   }, []);
 
   useInput((ch, key) => {
+    if (pending) {
+      const answer: "yes" | "always" | "no" | null =
+        ch === "y" ? "yes" : ch === "a" ? "always" : ch === "n" ? "no" : null;
+      if (answer) {
+        const p = pending;
+        setPending(null);
+        p.resolve(answer);
+      }
+      return;
+    }
     if (key.return) {
       const line = input;
       setInput("");
@@ -164,7 +183,14 @@ export function App(props: {
           );
         }}
       </Static>
-      {busy ? <Spinner label={busy === "task" ? "管道" : busy} /> : null}
+      {busy && !pending ? <Spinner label={busy === "task" ? "管道" : busy} /> : null}
+      {pending ? (
+        <Box borderStyle="round" borderColor="yellow" paddingX={1}>
+          <Text color="yellow" bold>
+            {"🔑 " + t("approvalPrompt", { detail: pending.detail })}
+          </Text>
+        </Box>
+      ) : null}
       <Box borderStyle="round" flexDirection="column" paddingX={1}>
         <Text dimColor>
           {props.mock ? "mock" : "real"} · {seatsLine} · {t("statusHints")}
@@ -200,6 +226,7 @@ export function runTui(opts: {
       agentsDir={opts.root + "/agents"}
       reportsDir={opts.reportsDir ?? opts.root + "/reports/pipeline"}
       sessionsDir={opts.root + "/reports/sessions"}
+      repoRoot={opts.root}
     />,
   );
 }

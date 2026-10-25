@@ -28,6 +28,7 @@ function mount() {
       agentsDir={resolve(root, "agents")}
       reportsDir={tmpReports}
       sessionsDir={resolve(tmpReports, "sessions")}
+      repoRoot={root}
     />,
   );
 }

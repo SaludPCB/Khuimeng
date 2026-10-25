@@ -51,6 +51,18 @@ npm start -- "你想要完成的任務"
 npm test
 ```
 
+## 沙箱與檔案手（P2）
+
+`--sandbox` 開啟 git worktree 練習房：Coder 真的寫檔（僅限沙箱內）、Viewer/Tester 唯讀檢查，主工作樹零風險。
+
+```bash
+npm start -- --mock --sandbox "任務"          # 管道模式（批次全自動）
+npm start -- tui → /mode ask|semi|auto       # TUI 內三段權限（寫入前 y/a/n 確認）
+npm start -- sandbox list|new|diff|merge|prune|rollback   # 沙箱管理
+```
+
+工具協定為純文字（不依賴 function-calling，任何模型可用）；每次 Coder 交棒自動建立檢查點，`rollback` 可回退。
+
 ## 互動式 TUI
 
 像 opencode／Claude Code 的互動介面，核心是三角色治理——跟 Coder 對話，用指令召喚審查與驗收：

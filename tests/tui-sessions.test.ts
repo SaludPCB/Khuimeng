@@ -36,6 +36,8 @@ function makeCtx(): TuiContext {
     reportsDir: tmp,
     sessionsDir: resolve(tmp, "sessions"),
     session: { name: "s1" },
+    repoRoot: root,
+    approvalMode: "auto",
     messages: [],
     chat: [],
     emit: () => {},

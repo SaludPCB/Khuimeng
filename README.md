@@ -40,6 +40,18 @@ npm start -- "your task"
 npm test
 ```
 
+## Sandbox & file tools (P2)
+
+`--sandbox` enables a git worktree playground: Coder writes real files (inside the sandbox only), Viewer/Tester get read-only tools — your main working tree stays untouched.
+
+```bash
+npm start -- --mock --sandbox "task"          # pipeline mode (batch, auto)
+npm start -- tui → /mode ask|semi|auto       # three permission tiers in TUI (y/a/n before writes)
+npm start -- sandbox list|new|diff|merge|prune|rollback   # sandbox management
+```
+
+The tool protocol is plain text (no function-calling dependency — works with any model); a checkpoint is created after each coder round, and `rollback` restores them.
+
 ## Interactive TUI
 
 ```bash

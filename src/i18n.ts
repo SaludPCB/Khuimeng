@@ -117,6 +117,28 @@ const ZH = {
   sessionRenamed: "session 已改名為「{name}」",
   sessionNameInvalid: "名稱須為 1-32 字（中英文、數字、連字號）",
   sessionCurrent: "目前 session：{name}（自動存檔；/rename 改名、/resume 續跑別的）",
+  toolSpec:
+    "你可以使用檔案工具（沙箱內）：\n" +
+    "寫入：先單獨一行 \"<<<TOOL write_file path=相對路徑\"，下一行起是完整檔案內容，最後單獨一行 \"TOOL>>>\"。\n" +
+    "讀取：\"<<<TOOL read_file path=相對路徑\" 換行 \"TOOL>>>\"。\n" +
+    "列表：\"<<<TOOL list_files path=.\" 換行 \"TOOL>>>\"。\n" +
+    "規則：路徑一律相對於工作目錄；禁 .env* 與 node_modules；寫入單檔上限 1MB。工具結果會回饋給你；完成後輸出最終報告（第 1 行必須是 ---，不得再含工具區塊）。",
+  sandboxCreated: "📁 沙箱已建立：{id}（分支 {branch}；目錄 {dir}）",
+  modeUsage: "用法：/mode ask|semi|auto（ask 全問／semi 寫入才問／auto 全自動）",
+  modeSwitched: "權限模式已切換為 {mode}",
+  approvalPrompt: "允許 {detail}？ [y]這次 [a]本session同類都允許 [n]拒絕",
+  worktreeUsage: "用法：/worktree list|new|diff <id>|merge <id>|prune <id>",
+  worktreeLine: "  {id} · 檢查點 {n} · {dirty}",
+  worktreeDirty: "有未存變更",
+  worktreeClean: "乾淨",
+  worktreeNone: "（尚無沙箱）",
+  worktreePruned: "沙箱已拆除：{id}",
+  worktreeMerged: "沙箱已 merge 回目前分支：{id}",
+  worktreeMergeFail: "merge 失敗：{msg}",
+  rollbackDone: "沙箱 {id} 已回滾 {n} 個檢查點",
+  rollbackUsage: "用法：/rollback [N]（預設 1；作用於最新沙箱）",
+  notGitRepo: "目前目錄不是 git 倉庫，沙箱功能需要 git",
+  sandboxMissing: "找不到沙箱：{id}",
   mockCoderReply:
     "（mock 模式）收到：「{text}」\n這是模擬回覆——設定 NVIDIA_API_KEY 並以 npm start -- tui（不加 --mock）啟動，即為真 LLM 對話。",
   digestBoss: "老闆",
@@ -248,6 +270,28 @@ const EN: Record<MsgKey, string> = {
   sessionNameInvalid: "Name must be 1-32 chars (letters incl. CJK, digits, hyphen)",
   sessionCurrent:
     "Current session: {name} (auto-saved; /rename to rename, /resume to switch)",
+  toolSpec:
+    "You can use file tools (inside the sandbox):\n" +
+    "Write: a lone line \"<<<TOOL write_file path=<rel-path>\" then the full file content, ended by a lone \"TOOL>>>\" line.\n" +
+    "Read: \"<<<TOOL read_file path=<rel-path>\" newline \"TOOL>>>\".\n" +
+    "List: \"<<<TOOL list_files path=.\" newline \"TOOL>>>\".\n" +
+    "Rules: paths are relative to the working dir; .env* and node_modules are forbidden; max 1MB per write. Tool results are fed back; when done, output the final report (line 1 must be ---, no more tool blocks).",
+  sandboxCreated: "📁 Sandbox created: {id} (branch {branch}; dir {dir})",
+  modeUsage: "Usage: /mode ask|semi|auto (ask = confirm all; semi = confirm writes; auto = all automatic)",
+  modeSwitched: "Permission mode switched to {mode}",
+  approvalPrompt: "Allow {detail}? [y]once [a]always this session [n]deny",
+  worktreeUsage: "Usage: /worktree list|new|diff <id>|merge <id>|prune <id>",
+  worktreeLine: "  {id} · checkpoints {n} · {dirty}",
+  worktreeDirty: "dirty",
+  worktreeClean: "clean",
+  worktreeNone: "(no sandboxes)",
+  worktreePruned: "Sandbox removed: {id}",
+  worktreeMerged: "Sandbox merged into the current branch: {id}",
+  worktreeMergeFail: "merge failed: {msg}",
+  rollbackDone: "Sandbox {id} rolled back {n} checkpoint(s)",
+  rollbackUsage: "Usage: /rollback [N] (default 1; applies to the newest sandbox)",
+  notGitRepo: "Not a git repository — the sandbox requires git",
+  sandboxMissing: "Sandbox not found: {id}",
   mockCoderReply:
     "(mock mode) Received: \"{text}\"\nThis is a simulated reply — set NVIDIA_API_KEY and run `npm start -- tui` (without --mock) for a real LLM chat.",
   digestBoss: "Boss",

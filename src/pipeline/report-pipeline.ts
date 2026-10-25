@@ -2,6 +2,15 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import { resolveRoleFile, t } from "../i18n";
+import {
+  checkpoint as sandboxCheckpoint,
+  createSandbox,
+  sandboxDiff,
+  type SandboxInfo,
+} from "../tools/sandbox";
+import { makeFileTools } from "../tools/file-tools";
+import { ApprovalGate, type ApprovalMode, type AskFn } from "../tools/approval";
+import { runAgentLoop } from "../tools/agent-loop";
 import { createProvider, type ProviderRegistry } from "../llm/factory";
 import type { SeatConfig, SeatsConfig } from "../agent/seat-loader";
 import { parseRoleMarkdown } from "../agent/role-loader";
@@ -147,6 +156,8 @@ export interface PipelineStep {
 export interface PipelineResult {
   status: "delivered" | "circuit_break";
   steps: PipelineStep[];
+  /** 本次任務的沙箱（--sandbox 時存在）；merge/prune 由老闆決定 */
+  sandbox?: SandboxInfo;
 }
 
 export interface ReportPipelineOptions {
@@ -160,6 +171,11 @@ export interface ReportPipelineOptions {
   maxIterations?: number;
   /** 報告檔名署名；預設 mock 為 "mock"，real 為 "pipeline" */
   signature?: string;
+  /** P2 沙箱：git worktree 練習房＋檔案手（coder 可寫、viewer/tester 唯讀） */
+  sandbox?: boolean;
+  repoRoot?: string;
+  /** 行動權限門：ask|semi|auto；非互動批次建議 auto */
+  approval?: { mode: ApprovalMode; ask?: AskFn };
   log?: (line: string) => void;
 }
 
@@ -173,6 +189,10 @@ export class ReportPipeline {
   private readonly signature: string;
   private readonly log: (line: string) => void;
   private readonly agents = new Map<PipelineRole, BaseAgent>();
+  private readonly useSandbox: boolean;
+  private readonly repoRoot: string;
+  private readonly approval?: { mode: ApprovalMode; ask?: AskFn };
+  private sandboxInfo?: SandboxInfo;
 
   constructor(opts: ReportPipelineOptions) {
     if (opts.seats.pipeline.mode !== "report_chain") {
@@ -194,6 +214,9 @@ export class ReportPipeline {
       throw new Error(t("maxIterInvalid", { value: this.maxIterations }));
     }
     this.signature = opts.signature ?? (this.mock ? "mock" : "pipeline");
+    this.useSandbox = opts.sandbox ?? false;
+    this.repoRoot = opts.repoRoot ?? process.cwd();
+    this.approval = opts.approval;
     this.log = opts.log ?? (() => {});
     if (!this.mock && !this.registry) {
       throw new Error(t("needRegistry"));
@@ -203,6 +226,19 @@ export class ReportPipeline {
   async run(task: string): Promise<PipelineResult> {
     this.validateRoleFiles();
     if (!this.mock) this.validateProviders();
+    if (this.useSandbox) {
+      const slug =
+        task.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 16) ||
+        "task";
+      this.sandboxInfo = createSandbox(this.repoRoot, slug);
+      this.log(
+        t("sandboxCreated", {
+          id: this.sandboxInfo.id,
+          branch: this.sandboxInfo.branch,
+          dir: this.sandboxInfo.dir,
+        }),
+      );
+    }
 
     const max = this.maxIterations;
     let iteration = 1;
@@ -236,10 +272,20 @@ export class ReportPipeline {
       }
       upstream = `${upstream}\n\n=== ${basename(produced.file)} ===\n${produced.body}`;
 
-      if (action === "delivered") return { status: "delivered", steps };
+      if (action === "delivered") {
+        return {
+          status: "delivered",
+          steps,
+          ...(this.sandboxInfo ? { sandbox: this.sandboxInfo } : {}),
+        };
+      }
       if (action === "circuit_break") {
         this.log(t("logCircuitBreak", { max }));
-        return { status: "circuit_break", steps };
+        return {
+          status: "circuit_break",
+          steps,
+          ...(this.sandboxInfo ? { sandbox: this.sandboxInfo } : {}),
+        };
       }
       if (action === "to_viewer") role = "viewer";
       else if (action === "to_tester") role = "tester";
@@ -313,18 +359,12 @@ export class ReportPipeline {
     coderFile: string,
     viewerFile: string,
   ): Promise<{ fm: ReportFrontmatter; body: string; file: string }> {
+    const sandboxCtx = this.sandboxInfo
+      ? `\n\n== 沙箱現況（${this.sandboxInfo.id}）==\n${sandboxDiff(this.repoRoot, this.sandboxInfo.id)}`
+      : "";
     const raw = this.mock
       ? mockReport(role, iteration, task, coderFile, viewerFile)
-      : await this.agent(role).speak([
-          {
-            role: "user",
-            content:
-              `${upstream}\n\n請依你的角色定義輸出 Markdown 報告。輸出格式（嚴格遵守）：\n` +
-              `第 1 行必須是 ---（之前不得有任何字元、問候、說明或程式碼圍欄）；\n` +
-              `接著 YAML frontmatter 五欄：role: ${role}、iteration: ${iteration}、depends_on: []、target_files: []、verdict: <值>；\n` +
-              `再一行 ---，之後才是報告本文。verdict 須落在你的值域 [${VERDICT_DOMAINS[role].join("/")}]。`,
-          },
-        ]);
+      : await this.produceReal(role, iteration, upstream, sandboxCtx);
     const md = this.mock ? raw : (normalizeReport(raw) ?? raw);
     let parsed: { fm: ReportFrontmatter; body: string };
     try {
@@ -335,6 +375,13 @@ export class ReportPipeline {
       );
     }
     const { fm, body } = parsed;
+    if (this.sandboxInfo && role === "coder") {
+      if (this.mock) {
+        const tools = makeFileTools({ sandboxDir: this.sandboxInfo.dir });
+        tools.write("mock-deliverable.txt", `mock deliverable for: ${task}`);
+      }
+      sandboxCheckpoint(this.repoRoot, this.sandboxInfo.id, `coder-it${iteration}`);
+    }
     if (fm.role !== role) {
       throw new Error(t("roleMismatch", { got: fm.role, want: role }));
     }
@@ -343,6 +390,42 @@ export class ReportPipeline {
     }
     const file = this.writeReport(role, iteration, task, fm, body);
     return { fm, body, file };
+  }
+
+  /** real 模式產出：沙箱開啟時走工具循環（coder 寫手／viewer·tester 唯讀），否則單發 */
+  private async produceReal(
+    role: PipelineRole,
+    iteration: number,
+    upstream: string,
+    sandboxCtx: string,
+  ): Promise<string> {
+    const agent = this.agent(role);
+    const instruction = t("reportInstruction", {
+      role,
+      iteration,
+      domain: VERDICT_DOMAINS[role].join("/"),
+    });
+    const content = `${upstream}${sandboxCtx}\n\n${instruction}`;
+    if (!this.sandboxInfo) return agent.speak([{ role: "user", content }]);
+
+    const file = makeFileTools({
+      sandboxDir: this.sandboxInfo.dir,
+      repoRoot: this.repoRoot,
+    });
+    const gate =
+      role === "coder"
+        ? new ApprovalGate(this.approval ?? { mode: "auto" })
+        : new ApprovalGate({
+            // 審查/驗收唯讀：寫入一律拒絕（紅線程式化）
+            mode: "semi",
+            ask: async () => "no",
+          });
+    return runAgentLoop(agent, {
+      initialUser: `${content}\n\n${t("toolSpec")}`,
+      file,
+      gate,
+      onTool: (desc) => this.log(`  🔧 ${desc}`),
+    });
   }
 
   private writeReport(

@@ -6,6 +6,15 @@ import { loadSeats } from "../src/agent/seat-loader";
 import { ReportPipeline, ROLES, type PipelineRole } from "../src/pipeline/report-pipeline";
 import { runWatcher } from "../src/pipeline/watcher";
 import { getLang, parseLang, setLang, t } from "../src/i18n";
+import {
+  createSandbox,
+  isGitRepo,
+  listSandboxes,
+  mergeSandbox,
+  pruneSandbox,
+  rollback,
+  sandboxDiff,
+} from "../src/tools/sandbox";
 
 // Khuimeng 報告管道 CLI / Khuimeng report pipeline CLI
 //   npm start -- "任務"                    real 模式
@@ -41,7 +50,7 @@ const HELP_ZH = `Khuimeng 報告管道 CLI v${VERSION}
   khuimeng tui [--mock]              互動式 TUI（跟 Coder 對話，/viewer /tester 召喚治理）
   khuimeng [旗標] "任務"              執行任務（real 模式）
   khuimeng --mock "任務"              mock 模式（免 API key）
-  khuimeng watch <角色> [旗標]        觀測面板：即時盯某角色的報告產出
+  khuimeng watch <角色> [旗標]        觀測面板：即時盯某角色的報告產出\n  khuimeng sandbox [list|new|diff|merge|prune|rollback]  沙箱管理（git worktree）
 
 watch 角色：coder | viewer | tester（開三個終端機視窗各跑一個，即是三視窗觀測）
 watch 旗標：--reports-dir <路徑>、--match <關鍵字>（只盯某任務）、--once（渲染一次即退出）
@@ -54,7 +63,7 @@ watch 語義：啟動時進入待命（舊報告只在「上次」一行帶過�
   --reports-dir <路徑>        報告輸出目錄（預設 reports/pipeline）
   --signature <名稱>          報告檔名署名
   --lang en | zh-TW           介面語系（en 同時切換英文角色檔）
-  --json                     只輸出機器可讀 JSON（抑制過程 log）
+  --sandbox                  啟用沙箱＋檔案手（coder 真的寫檔；worktree 隔離）\n  --json                     只輸出機器可讀 JSON（抑制過程 log）
   --version                  顯示版本
   -h, --help                 顯示本說明
 
@@ -72,7 +81,7 @@ Usage:
   khuimeng tui [--mock]              Interactive TUI (chat with Coder; /viewer /tester summon governance)
   khuimeng [flags] "task"            Run a task (real mode)
   khuimeng --mock "task"             Mock mode (no API key)
-  khuimeng watch <role> [flags]      Observation panel for one role's reports
+  khuimeng watch <role> [flags]      Observation panel for one role's reports\n  khuimeng sandbox [list|new|diff|merge|prune|rollback]  Sandbox (git worktree) management
 
 watch roles: coder | viewer | tester (three terminals = three-window observation)
 watch flags: --reports-dir <path>, --match <keyword> (one task only), --once (render once and exit)
@@ -86,7 +95,7 @@ Flags:
   --reports-dir <path>        Report output directory (default reports/pipeline)
   --signature <name>          Report filename signature
   --lang en | zh-TW           UI language (en also switches English role files)
-  --json                     Machine-readable JSON output only
+  --sandbox                  Enable sandbox + file tools (coder writes real files; worktree-isolated)\n  --json                     Machine-readable JSON output only
   --version                  Show version
   -h, --help                 Show this help
 
@@ -103,6 +112,86 @@ function helpText(): string {
 }
 
 // ── watch 子命令 ──────────────────────────────────────────────
+
+// ── sandbox 子命令 ────────────────────────────────────────────
+
+function runSandboxCommand(argv: string[], repoRoot: string): number {
+  const [sub, id] = argv;
+  if (!isGitRepo(repoRoot)) {
+    console.error(t("errPrefix", { msg: t("notGitRepo") }));
+    return 2;
+  }
+  try {
+    switch (sub ?? "list") {
+      case "list": {
+        const list = listSandboxes(repoRoot);
+        if (list.length === 0) {
+          console.log(t("worktreeNone"));
+          return 0;
+        }
+        for (const sb of list) {
+          console.log(
+            t("worktreeLine", {
+              id: sb.id,
+              n: sb.checkpoints,
+              dirty: sb.dirty ? t("worktreeDirty") : t("worktreeClean"),
+            }),
+          );
+        }
+        return 0;
+      }
+      case "new": {
+        const sb = createSandbox(repoRoot);
+        console.log(t("sandboxCreated", { id: sb.id, branch: sb.branch, dir: sb.dir }));
+        return 0;
+      }
+      case "diff": {
+        if (!id) {
+          console.error(t("errPrefix", { msg: t("worktreeUsage") }));
+          return 2;
+        }
+        console.log(sandboxDiff(repoRoot, id));
+        return 0;
+      }
+      case "merge": {
+        if (!id) {
+          console.error(t("errPrefix", { msg: t("worktreeUsage") }));
+          return 2;
+        }
+        console.log(t("worktreeMerged", { id }));
+        mergeSandbox(repoRoot, id);
+        return 0;
+      }
+      case "prune": {
+        if (!id) {
+          console.error(t("errPrefix", { msg: t("worktreeUsage") }));
+          return 2;
+        }
+        pruneSandbox(repoRoot, id);
+        console.log(t("worktreePruned", { id }));
+        return 0;
+      }
+      case "rollback": {
+        const n = Number(id ?? 1);
+        const list = listSandboxes(repoRoot);
+        const newest = list[0];
+        if (!newest) {
+          console.error(t("errPrefix", { msg: t("worktreeNone") }));
+          return 2;
+        }
+        rollback(repoRoot, newest.id, Number.isInteger(n) && n > 0 ? n : 1);
+        console.log(t("rollbackDone", { id: newest.id, n }));
+        return 0;
+      }
+      default:
+        console.error(t("errPrefix", { msg: t("worktreeUsage") }));
+        return 2;
+    }
+  } catch (e) {
+    console.error(t("errPrefix", { msg: (e as Error).message }));
+    return 2;
+  }
+}
 
 function runWatchCommand(argv: string[]): number {
   let role = "";
@@ -174,6 +263,7 @@ interface CliArgs {
   reportsDir?: string;
   signature?: string;
   json: boolean;
+  sandbox?: boolean;
 }
 
 function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; message: string } {
@@ -224,6 +314,9 @@ function parseArgs(argv: string[]): { ok: true; args: CliArgs } | { ok: false; m
       }
       case "--json":
         args.json = true;
+        break;
+      case "--sandbox":
+        args.sandbox = true;
         break;
       case "--version":
         console.log(VERSION);
@@ -291,6 +384,9 @@ async function runMain(argv: string[]): Promise<void> {
       : resolve(root, "reports/pipeline"),
     maxIterations: args.maxIterations,
     signature: args.signature,
+    sandbox: args.sandbox,
+    repoRoot: root,
+    approval: args.sandbox ? { mode: "auto" } : undefined,
     log,
   });
 
@@ -324,7 +420,9 @@ async function runMain(argv: string[]): Promise<void> {
 // ── 分派 ─────────────────────────────────────────────────────
 
 const argv = process.argv.slice(2);
-if (argv[0] === "tui") {
+if (argv[0] === "sandbox") {
+  process.exit(runSandboxCommand(argv.slice(1), resolve(import.meta.dirname, "..")));
+} else if (argv[0] === "tui") {
   const mock = argv.includes("--mock");
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--lang") {
