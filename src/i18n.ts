@@ -76,6 +76,7 @@ const ZH = {
   tuiHelp: [
     "指令：",
     "  直接輸入訊息        與 Coder 對話（保留上下文）",
+    "  /ask 角色 問題       指名問任一角色（三方會診，全員看得到對話）",
     "  /viewer            召喚 Viewer 審查當前 Coder 產出",
     "  /tester            召喚 Tester 驗收當前產出",
     '  /task "任務"       跑全自動管道（雙門檻＋熔斷）',
@@ -117,6 +118,9 @@ const ZH = {
   sessionRenamed: "session 已改名為「{name}」",
   sessionNameInvalid: "名稱須為 1-32 字（中英文、數字、連字號）",
   sessionCurrent: "目前 session：{name}（自動存檔；/rename 改名、/resume 續跑別的）",
+  askUsage: "用法：/ask coder|viewer|tester <問題>（直接打字＝問 Coder）",
+  mockRoleReply:
+    "（mock 模式）{role} 收到：「{text}」\n這是模擬回覆——real 模式下為 {role} 的真實回應。",
   toolSpec:
     "你可以使用檔案工具（沙箱內）：\n" +
     "寫入：先單獨一行 \"<<<TOOL write_file path=相對路徑\"，下一行起是完整檔案內容，最後單獨一行 \"TOOL>>>\"。\n" +
@@ -228,6 +232,7 @@ const EN: Record<MsgKey, string> = {
   tuiHelp: [
     "Commands:",
     "  plain text          Chat with Coder (context preserved)",
+    "  /ask <role> <text>   Address any role directly (group consult; shared transcript)",
     "  /viewer             Summon Viewer to review Coder's latest output",
     "  /tester             Summon Tester to accept the current output",
     '  /task "description" Run the full pipeline (dual gate + circuit breaker)',
@@ -270,6 +275,9 @@ const EN: Record<MsgKey, string> = {
   sessionNameInvalid: "Name must be 1-32 chars (letters incl. CJK, digits, hyphen)",
   sessionCurrent:
     "Current session: {name} (auto-saved; /rename to rename, /resume to switch)",
+  askUsage: "Usage: /ask coder|viewer|tester <question> (plain text = ask Coder)",
+  mockRoleReply:
+    "(mock mode) {role} received: \"{text}\"\nSimulated reply — real {role} response in real mode.",
   toolSpec:
     "You can use file tools (inside the sandbox):\n" +
     "Write: a lone line \"<<<TOOL write_file path=<rel-path>\" then the full file content, ended by a lone \"TOOL>>>\" line.\n" +

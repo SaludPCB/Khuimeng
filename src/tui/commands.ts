@@ -45,15 +45,39 @@ export interface TuiMessage {
   meta?: string;
 }
 
+export type SpeakerRole = "user" | "coder" | "viewer" | "tester";
+
 export interface ChatTurn {
-  role: "user" | "coder";
+  role: SpeakerRole;
   content: string;
+}
+
+function speakerLabel(role: SpeakerRole): string {
+  if (role === "user") return t("digestBoss");
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+/** 以目標角色視角組 transcript：自己的舊發言=assistant，其他人帶名牌當輸入 */
+export function buildTranscriptFor(
+  chat: ChatTurn[],
+  target: PipelineRole,
+): { role: "user" | "assistant"; content: string }[] {
+  return chat.map((turn) => {
+    if (turn.role === target) {
+      return { role: "assistant" as const, content: turn.content };
+    }
+    if (turn.role === "user") {
+      return { role: "user" as const, content: turn.content };
+    }
+    return { role: "user" as const, content: `[${speakerLabel(turn.role)}] ${turn.content}` };
+  });
 }
 
 // ── 指令解析（純函式） ────────────────────────────────────────
 
 export type Command =
   | { type: "chat"; text: string }
+  | { type: "ask"; role: string; text: string }
   | { type: "help" }
   | { type: "viewer" }
   | { type: "tester" }
@@ -79,6 +103,10 @@ export function parseCommand(input: string): Command {
   const [name, ...rest] = text.split(/\s+/);
   const arg = rest.join(" ");
   switch (name) {
+    case "/ask": {
+      const [role, ...msg] = rest;
+      return { type: "ask", role: role ?? "", text: msg.join(" ") };
+    }
     case "/help":
       return { type: "help" };
     case "/viewer":
@@ -218,7 +246,7 @@ export function transcriptDigest(chat: ChatTurn[], keep = 12): string {
   const slice = chat.slice(-keep * 2);
   const sep = getLang() === "en" ? ": " : "：";
   return slice
-    .map((turn) => `${turn.role === "user" ? t("digestBoss") : "Coder"}${sep}${turn.content}`)
+    .map((turn) => `${speakerLabel(turn.role)}${sep}${turn.content}`)
     .join("\n\n");
 }
 
@@ -325,33 +353,24 @@ async function summonRole(ctx: TuiContext, role: "viewer" | "tester"): Promise<v
 
 // ── 對話（Coder） ─────────────────────────────────────────────
 
-function mockCoderReply(text: string): string {
-  return t("mockCoderReply", { text: text.slice(0, 60) });
-}
-
-async function chatWithCoder(ctx: TuiContext, text: string): Promise<void> {
+async function chatWithRole(ctx: TuiContext, role: PipelineRole, text: string): Promise<void> {
   ctx.chat.push({ role: "user", content: text });
   say(ctx, "user", text);
-  ctx.busy("coder");
+  ctx.busy(role);
   try {
     let reply: string;
     if (ctx.mock) {
-      reply = mockCoderReply(text);
+      reply = t("mockRoleReply", { role, text: text.slice(0, 60) });
     } else {
-      const agent = buildAgent(ctx, "coder");
+      const agent = buildAgent(ctx, role);
       if (!agent) {
-        say(ctx, "error", t("seatUnavailable", { role: "coder" }));
+        say(ctx, "error", t("seatUnavailable", { role }));
         return;
       }
-      reply = await agent.speak(
-        ctx.chat.map((t) => ({
-          role: t.role === "coder" ? ("assistant" as const) : ("user" as const),
-          content: t.content,
-        })),
-      );
+      reply = await agent.speak(buildTranscriptFor(ctx.chat, role));
     }
-    ctx.chat.push({ role: "coder", content: reply });
-    say(ctx, "coder", reply);
+    ctx.chat.push({ role, content: reply });
+    say(ctx, role, reply);
   } catch (e) {
     say(ctx, "error", t("coderFail", { msg: (e as Error).message }));
   } finally {
@@ -409,8 +428,16 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
   const cmd = parseCommand(input);
   switch (cmd.type) {
     case "chat":
-      await chatWithCoder(ctx, cmd.text);
+      await chatWithRole(ctx, "coder", cmd.text);
       return;
+    case "ask": {
+      if (!ROLES.includes(cmd.role as PipelineRole) || !cmd.text.trim()) {
+        say(ctx, "error", t("askUsage"));
+        return;
+      }
+      await chatWithRole(ctx, cmd.role as PipelineRole, cmd.text);
+      return;
+    }
     case "help":
       say(ctx, "system", HELP_TEXT);
       return;
