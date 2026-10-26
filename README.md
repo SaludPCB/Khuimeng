@@ -42,6 +42,10 @@ npm start -- "your task"
 npm test
 ```
 
+## Skills
+
+Drop `skills/<name>/SKILL.md` to teach the team new tricks (Markdown + frontmatter, same as role files): `description` explains the skill, `roles: [tester]` restricts it (omit = all roles). Loaded skills are injected into matching roles' system prompts — `/skills` lists them. Two examples ship: `testing-discipline` (tester focus) and `repo-conventions` (all roles).
+
 ## Sandbox & file tools (P2)
 
 `--sandbox` enables a git worktree playground: Coder writes real files (inside the sandbox only), Viewer/Tester get read-only tools — your main working tree stays untouched.

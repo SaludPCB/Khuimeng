@@ -11,6 +11,7 @@ import {
 import { makeFileTools } from "../tools/file-tools";
 import { ApprovalGate, type ApprovalMode, type AskFn } from "../tools/approval";
 import { runAgentLoop } from "../tools/agent-loop";
+import { loadSkills, renderSkillsPrompt, skillsForRole } from "../agent/skills";
 import { createProvider, type ProviderRegistry } from "../llm/factory";
 import type { SeatConfig, SeatsConfig } from "../agent/seat-loader";
 import { parseRoleMarkdown } from "../agent/role-loader";
@@ -337,9 +338,15 @@ export class ReportPipeline {
     if (!provider) {
       throw new Error(t("providerNoKeyShort", { provider: seat.provider }));
     }
+    const parsedRole = parseRoleMarkdown(this.roleFileRaw(role), role);
+    // Skills 注入：skills/<name>/SKILL.md 依角色附加到 system prompt
+    const skills = skillsForRole(loadSkills(resolve(this.repoRoot, "skills")), role);
     const built = new BaseAgent({
       name: role,
-      role: parseRoleMarkdown(this.roleFileRaw(role), role),
+      role: {
+        ...parsedRole,
+        systemPrompt: parsedRole.systemPrompt + renderSkillsPrompt(skills),
+      },
       seat,
       provider,
     });

@@ -26,6 +26,7 @@ import {
   sandboxDiff,
 } from "../tools/sandbox";
 import type { ApprovalMode } from "../tools/approval";
+import { loadSkills, renderSkillsPrompt, skillsForRole } from "../agent/skills";
 import {
   isValidSessionName,
   listSessions,
@@ -86,6 +87,7 @@ export type Command =
   | { type: "task"; text: string }
   | { type: "model"; role: string; model: string }
   | { type: "provider"; role: string; provider: string; baseUrl?: string }
+  | { type: "skills" }
   | { type: "sessions" }
   | { type: "resume"; name: string }
   | { type: "mode"; mode: string }
@@ -146,6 +148,8 @@ export function parseCommand(input: string): Command {
       const n = Number(arg);
       return { type: "rollback", n: arg && Number.isInteger(n) ? n : undefined };
     }
+    case "/skills":
+      return { type: "skills" };
     case "/sessions":
       return { type: "sessions" };
     case "/resume":
@@ -221,9 +225,14 @@ function buildAgent(ctx: TuiContext, role: PipelineRole): BaseAgent | null {
     : ctx.registry?.get(seat.provider);
   if (!provider) return null;
   const raw = readFileSync(resolveRoleFile(resolve(ctx.agentsDir, `${role}.md`)), "utf-8");
+  const parsedRole = parseRoleMarkdown(raw, role);
+  const skills = skillsForRole(loadSkills(resolve(ctx.repoRoot, "skills")), role);
   const agent = new BaseAgent({
     name: role,
-    role: parseRoleMarkdown(raw, role),
+    role: {
+      ...parsedRole,
+      systemPrompt: parsedRole.systemPrompt + renderSkillsPrompt(skills),
+    },
     seat,
     provider,
   });
@@ -677,6 +686,27 @@ export async function executeCommand(ctx: TuiContext, input: string): Promise<vo
       } catch (e) {
         say(ctx, "error", (e as Error).message);
       }
+      return;
+    }
+    case "skills": {
+      const list = loadSkills(resolve(ctx.repoRoot, "skills"));
+      if (list.length === 0) {
+        say(ctx, "system", t("skillsNone"));
+        return;
+      }
+      say(
+        ctx,
+        "system",
+        list
+          .map((sk) =>
+            t("skillLine", {
+              name: sk.name,
+              roles: sk.roles ? sk.roles.join(",") : "*",
+              desc: sk.description,
+            }),
+          )
+          .join("\n"),
+      );
       return;
     }
     case "sessions": {

@@ -53,6 +53,10 @@ npm start -- "你想要完成的任務"
 npm test
 ```
 
+## Skills（技能說明書）
+
+放 `skills/<名稱>/SKILL.md` 即自動生效（Markdown + frontmatter，與角色檔同構）：`description` 說明用途，`roles: [tester]` 限定角色（省略＝全部）。載入後注入對應角色的 system prompt——`/skills` 查看已載入。隨附兩個範例：`testing-discipline`（tester 驗收紀律）、`repo-conventions`（全角色倉庫慣例）。
+
 ## 沙箱與檔案手（P2）
 
 `--sandbox` 開啟 git worktree 練習房：Coder 真的寫檔（僅限沙箱內）、Viewer/Tester 唯讀檢查，主工作樹零風險。
