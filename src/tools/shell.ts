@@ -25,8 +25,19 @@ const ALLOW_PREFIXES: readonly string[] = [
   "cat",
 ];
 
-/** 危險樣式（自動拒絕，不進入詢問）——參考 opencode policy / Hermes 危險清單 */
+/**
+ * 危險樣式（自動拒絕，不進入詢問）——參考 opencode policy / Hermes 危險清單。
+ * P0 封堵（安全審視 2026-10-25 實測漏洞）：
+ *   - 行內程式碼（node/npx/tsx -e/--eval）：等於任意代碼執行，繞過一切圍欄
+ *   - 特殊符號（; | & ` 與 $(…)）：命令串接/替換注入
+ *   - 路徑逃逸（../ 與絕對路徑參數、~/）：指令參數不受 cwd 圍欄保護
+ */
 const DENY_PATTERNS: readonly RegExp[] = [
+  /\b(node|npx|tsx)\b[^|;&`]*\s(-e|--eval)(\s|$)/,
+  /[;|&`]|\$\(/,
+  /\.\./,
+  /(^|\s)=?~\//,
+  /(^|\s)\/[^\s]*/,
   /\brm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r|--recursive)/i,
   /\bsudo\b/i,
   /\bshutdown\b|\breboot\b/i,
@@ -37,7 +48,7 @@ const DENY_PATTERNS: readonly RegExp[] = [
   />\s*\/dev\/sd[a-z]/i,
   /\bchmod\s+777\s+\/(?!tmp|var\/folders)\S/i,
   /[>]{1,2}\s*\/(etc|System|Library|usr\/bin|Windows)\b/i,
-  /\bgit\s+push\s+--force\b/i,
+  /\bgit\s+push\b[^\n]*(-f\b|--force|--force-with-lease)/i,
 ];
 
 export function isAllowedCommand(cmd: string): boolean {

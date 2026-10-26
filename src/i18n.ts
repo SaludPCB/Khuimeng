@@ -134,7 +134,7 @@ const ZH = {
     "寫入：先單獨一行 \"<<<TOOL write_file path=相對路徑\"，下一行起是完整檔案內容，最後單獨一行 \"TOOL>>>\"。\n" +
     "讀取：\"<<<TOOL read_file path=相對路徑\" 換行 \"TOOL>>>\"。\n" +
     "列表：\"<<<TOOL list_files path=.\" 換行 \"TOOL>>>\"。\n" +
-    "執行：<<TOOL run cmd=npm test 換行 TOOL>>>（白名單：npm test/npm run/npx vitest/node/tsc/git status|diff|log/ls/cat；危險指令一律拒絕）。\n" +
+    "執行：<<TOOL run cmd=npm test 換行 TOOL>>>（白名單：npm test/npm run/npx vitest/node 檔案/tsc/git status|diff|log/ls/cat；**禁用** node -e 行內碼、;|&&、$()、反引號、絕對路徑與 ../；臨時檔一律寫在工作目錄內）。\n" +
     "規則：路徑一律相對於工作目錄；禁 .env* 與 node_modules；寫入單檔上限 1MB；指令逾時 60 秒。**工具呼叫請節制：聚焦本任務的產出檔案與其驗證，非必要不要探索整個倉庫**。工具結果會回饋給你；完成後輸出最終報告（第 1 行必須是 ---，不得再含工具區塊）。",
   sandboxCreated: "📁 沙箱已建立：{id}（分支 {branch}；目錄 {dir}）",
   modeUsage: "用法：/mode ask|semi|auto（ask 全問／semi 寫入才問／auto 全自動）",
@@ -300,7 +300,7 @@ const EN: Record<MsgKey, string> = {
     "Write: a lone line \"<<<TOOL write_file path=<rel-path>\" then the full file content, ended by a lone \"TOOL>>>\" line.\n" +
     "Read: \"<<<TOOL read_file path=<rel-path>\" newline \"TOOL>>>\".\n" +
     "List: \"<<<TOOL list_files path=.\" newline \"TOOL>>>\".\n" +
-    "Run: <<<TOOL run cmd=npm test newline TOOL>>> (whitelist: npm test/npm run/npx vitest/node/tsc/git status|diff|log/ls/cat; dangerous commands are always denied).\n" +
+    "Run: <<<TOOL run cmd=npm test newline TOOL>>> (whitelist: npm test/npm run/npx vitest/node <file>/tsc/git status|diff|log/ls/cat; **forbidden**: node -e inline code, ;|&&, $(), backticks, absolute paths and ../; write temp files inside the working dir).\n" +
     "Rules: paths are relative to the working dir; .env* and node_modules are forbidden; max 1MB per write; commands time out after 60s. **Be frugal with tool calls: focus on this task's deliverables and their verification — do not explore the whole repo unless necessary.** Tool results are fed back; when done, output the final report (line 1 must be ---, no more tool blocks).",
   sandboxCreated: "📁 Sandbox created: {id} (branch {branch}; dir {dir})",
   modeUsage: "Usage: /mode ask|semi|auto (ask = confirm all; semi = confirm writes; auto = all automatic)",
