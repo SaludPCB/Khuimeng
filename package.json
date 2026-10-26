@@ -1,7 +1,7 @@
 {
   "name": "khuimeng",
   "version": "0.1.0",
-  "description": "通用多角色 AI 辯論與共識生成框架 - Multi-Agent Debate Framework with true multi-LLM support",
+  "description": "Report-driven multi-agent engineering pipeline — Coder→Viewer→Tester with dual-gate governance, sandbox and true multi-LLM seats",
   "license": "MIT",
   "type": "module",
   "bin": {
