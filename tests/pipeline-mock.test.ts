@@ -95,3 +95,16 @@ describe("ReportPipeline（mock 冒煙）：端到端全鏈", () => {
     await expect(pipeline.run("x")).rejects.toThrow(/frontmatter/);
   });
 });
+
+describe("ReportPipeline：角色檔路徑不依賴 cwd（npm/npx 安裝情境）", () => {
+  it("cwd 不在專案根目錄時仍能讀到 seats.yaml 指定的 system_prompt_file", async () => {
+    const prev = process.cwd();
+    process.chdir(tmpdir());
+    try {
+      const result = await makePipeline().run("cwd 測試");
+      expect(result.status).toBe("delivered");
+    } finally {
+      process.chdir(prev);
+    }
+  });
+});

@@ -2,6 +2,18 @@
 
 [English](./README.md)
 
+[![CI](https://github.com/SaludPCB/Khuimeng/actions/workflows/ci.yml/badge.svg)](https://github.com/SaludPCB/Khuimeng/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/khuimeng)](https://www.npmjs.com/package/khuimeng)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](./package.json)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/saludpcb)
+
+> **代理不聊天，只交報告。** 一個模型寫程式、*另一家*模型審查、第三個跑測試——兩道關卡都放行才交付。
+
+```bash
+npx khuimeng --mock "寫一個 add(a, b) 函式"   # 免 API key 跑完整條管道
+```
+
 報告驅動的三角色 AI 工程管道 — Report-driven multi-agent pipeline with true multi-LLM support.
 
 三個不同 LLM 供應商驅動的角色（Coder → Viewer → Tester）以 **Markdown 報告為唯一溝通媒介** 協作完成軟體任務：跨模型異質性作為品質防線，雙門檻判定（Viewer approve ＋ Tester pass）才放行交付。
@@ -38,6 +50,11 @@
 ## 快速開始
 
 ```bash
+# 免 clone 直接試（管道＋TUI；要用 --sandbox 請 clone 原始碼）
+npx khuimeng --mock "你的任務"
+NVIDIA_API_KEY=nvapi-... npx khuimeng "你的任務"
+
+# 從原始碼
 npm install
 
 # 體驗：mock 模式跑通三角色報告管道（免 API key）

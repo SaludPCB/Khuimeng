@@ -2,6 +2,18 @@
 
 [中文說明](./README.zh-TW.md)
 
+[![CI](https://github.com/SaludPCB/Khuimeng/actions/workflows/ci.yml/badge.svg)](https://github.com/SaludPCB/Khuimeng/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/khuimeng)](https://www.npmjs.com/package/khuimeng)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](./package.json)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/saludpcb)
+
+> **Agents don't chat. They file reports.** One model writes the code, a *different* model reviews it, a third runs the tests — and nothing ships until both gates say yes.
+
+```bash
+npx khuimeng --mock "write an add(a, b) function"   # full pipeline, no API key
+```
+
 Report-driven three-role AI engineering pipeline — multi-agent governance with true multi-LLM support.
 
 Three roles powered by different LLM providers (**Coder → Viewer → Tester**) collaborate on software tasks with **Markdown reports as their only communication medium**: cross-model heterogeneity as a quality defense line, and a dual-gate verdict (Viewer `approve` + Tester `pass`) required before anything is delivered.
@@ -28,6 +40,11 @@ task ──▶ Coder ──[report]──▶ Viewer ──[review]──▶ Test
 ## Quick start
 
 ```bash
+# One-off, no clone (pipeline + TUI; for --sandbox, clone the repo)
+npx khuimeng --mock "your task"
+NVIDIA_API_KEY=nvapi-... npx khuimeng "your task"
+
+# From source
 npm install
 
 # Try it: mock mode, no API key needed

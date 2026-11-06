@@ -357,7 +357,7 @@ export class ReportPipeline {
   private roleFileRaw(role: PipelineRole): string {
     const seat = this.seats.seats[role] as SeatConfig;
     const path = seat.system_prompt_file
-      ? resolve(seat.system_prompt_file)
+      ? resolve(this.agentsDir, "..", seat.system_prompt_file) // seats.yaml paths are relative to the install root, not cwd
       : resolve(this.agentsDir, `${role}.md`);
     return readFileSync(resolveRoleFile(path), "utf-8");
   }
