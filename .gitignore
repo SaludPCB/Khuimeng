@@ -36,3 +36,6 @@ npm-debug.log*
 
 # 8. 沙箱工作目錄（git worktree 練習房，任務產物不進版控）
 .khuimeng/
+
+# 9. Tester 執行暫存（node compile cache 等）
+.tester_tmp/
