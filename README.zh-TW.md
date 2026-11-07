@@ -50,6 +50,11 @@ npx khuimeng --mock "寫一個 add(a, b) 函式"   # 免 API key 跑完整條管
 ## 快速開始
 
 ```bash
+# 全域安裝，之後直接打 `khuimeng`
+npm install -g khuimeng
+khuimeng --mock "你的任務"
+khuimeng tui
+
 # 免 clone 直接試（管道＋TUI；要用 --sandbox 請 clone 原始碼）
 npx khuimeng --mock "你的任務"
 NVIDIA_API_KEY=nvapi-... npx khuimeng "你的任務"

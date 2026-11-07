@@ -40,6 +40,11 @@ task ──▶ Coder ──[report]──▶ Viewer ──[review]──▶ Test
 ## Quick start
 
 ```bash
+# Install once, then just type `khuimeng`
+npm install -g khuimeng
+khuimeng --mock "your task"
+khuimeng tui
+
 # One-off, no clone (pipeline + TUI; for --sandbox, clone the repo)
 npx khuimeng --mock "your task"
 NVIDIA_API_KEY=nvapi-... npx khuimeng "your task"
