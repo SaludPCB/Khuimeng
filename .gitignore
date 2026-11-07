@@ -29,6 +29,7 @@ Thumbs.db
 *.jpg
 *.jpeg
 *.gif
+!docs/demo.gif
 
 # 7. 日誌檔案
 *.log

@@ -10,6 +10,8 @@
 
 > **Agents don't chat. They file reports.** One model writes the code, a *different* model reviews it, a third runs the tests — and nothing ships until both gates say yes.
 
+![demo](./docs/demo.gif)
+
 ```bash
 npx khuimeng --mock "write an add(a, b) function"   # full pipeline, no API key
 ```
