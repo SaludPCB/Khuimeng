@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "khuimeng": "./bin/khuimeng.mjs"
+    "khuimeng": "bin/khuimeng.mjs"
   },
   "exports": {
     ".": "./src/index.ts"
